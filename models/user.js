@@ -13,4 +13,7 @@ const UserSchema = new mongoose.Schema({
     updateAt: Date
 });
 
+UserSchema.index({ email: 1 })
+UserSchema.index({ apiKey: 1 })
+
 export default mongoose.models.User || mongoose.model("User", UserSchema);
