@@ -1,6 +1,6 @@
 import { worker } from 'bullmq'
-import { redis } from '@/lib/redis'
-import { youtube } from '@/lib/scrapers/youtube'
+import { redis } from '@/lib/redis.js'
+import { youtube } from '@/lib/scrapers/youtube.js'
 
 new Worker(
     'scraper-queue',

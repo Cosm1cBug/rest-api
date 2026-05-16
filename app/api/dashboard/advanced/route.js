@@ -1,5 +1,5 @@
-import ApiLog from '@/models/apiLog'
-import connectDB from '@/lib/mongodb'
+import ApiLog from '@/models/apiLog.js'
+import connectDB from '@/lib/mongodb.js'
 
 export async function GET() {
 

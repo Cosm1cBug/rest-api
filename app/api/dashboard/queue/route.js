@@ -1,4 +1,4 @@
-import { scraperQueue } from '@/lib/bullmq'
+import { scraperQueue } from '@/lib/bullmq.js'
 
 export async function GET() {
 
