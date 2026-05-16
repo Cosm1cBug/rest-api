@@ -1,12 +1,17 @@
-'use client';
-import Navbar from "@/components/navbar";
-import { useState, useEffect } from "react";
+'use client'
+import Navbar from "@/components/navbar"
+import { useState, useEffect } from "react"
+import io from 'socket.io-client'
 
 export default function Dashboard() {
     const [totalViews, setTotalViews] = useState(null);
     const [totalRequestToday, setTotalRequestToday] = useState(null);
     const [totalRequests, setTotalRequests] = useState(null);
     const [time, setTime] = useState(null);
+    const [liveRequests, setLiveRequests] = useState([]);
+    const [topEndpoints, setTopEndpoints] = useState([]);
+    const [topUsers, setTopUsers] = useState([]);
+    const [systemStats, setSystemStats] = useState(null);
 
     const formatTime = time?.toLocaleTimeString("id-ID", {
         hour: "2-digit",
@@ -108,6 +113,57 @@ export default function Dashboard() {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        fetch('/api/socket');
+        
+        const socket = io();
+        
+        socket.on('api-request', (data) => {
+            setLiveRequests(prev => [
+                data,
+                ...prev
+            ].slice(0, 20));
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, []);
+
+    useEffect(() => {
+
+    const fetchAdvanced =
+        async () => {
+
+        try {
+
+            const res =
+                await fetch(
+                    '/api/dashboard/advanced'
+                );
+
+            const data =
+                await res.json();
+
+            setTopEndpoints(
+                data.topEndpoints || []
+            );
+
+            setTopUsers(
+                data.topUsers || []
+            );
+
+        } catch (err) {
+
+            console.error(err);
+        }
+    };
+
+    fetchAdvanced();
+
+}, []);
+
+    
     return (
         <div>
             <Navbar />
@@ -177,6 +233,130 @@ export default function Dashboard() {
                         ))}
                     </div>
                 </div>
+                <div className="mx-5 md:mx-10 mb-10">
+
+    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+
+        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
+
+            Live Requests
+
+        </h2>
+
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+
+            {liveRequests.map((req, idx) => (
+
+                <div
+                    key={idx}
+                    className="bg-[#29293d] p-4 rounded"
+                >
+
+                    <p className="text-gray-300">
+
+                        <strong>Endpoint:</strong>
+
+                        {' '}
+
+                        {req.endpoint}
+
+                    </p>
+
+                    <p className="text-gray-300">
+
+                        <strong>Status:</strong>
+
+                        {' '}
+
+                        {req.status}
+
+                    </p>
+
+                    <p className="text-gray-300">
+
+                        <strong>Duration:</strong>
+
+                        {' '}
+
+                        {req.duration}ms
+
+                    </p>
+
+                </div>
+            ))}
+
+        </div>
+
+    </div>
+
+</div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mx-5 md:mx-10 mb-10">
+
+    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+
+        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
+
+            Top Endpoints
+
+        </h2>
+
+        {topEndpoints.map((item, idx) => (
+
+            <div
+                key={idx}
+                className="flex justify-between py-2 border-b border-gray-700"
+            >
+
+                <span className="text-gray-300">
+
+                    {item._id}
+
+                </span>
+
+                <span className="text-gray-400">
+
+                    {item.count}
+
+                </span>
+
+            </div>
+        ))}
+
+    </div>
+
+    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+
+        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
+
+            Top Users
+
+        </h2>
+
+        {topUsers.map((item, idx) => (
+
+            <div
+                key={idx}
+                className="flex justify-between py-2 border-b border-gray-700"
+            >
+
+                <span className="text-gray-300">
+
+                    {item._id}
+
+                </span>
+
+                <span className="text-gray-400">
+
+                    {item.count}
+
+                </span>
+
+            </div>
+        ))}
+
+    </div>
+
+</div>
             </div>
         </div>
         
