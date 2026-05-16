@@ -11,8 +11,9 @@ export default function Dashboard() {
     const [liveRequests, setLiveRequests] = useState([]);
     const [topEndpoints, setTopEndpoints] = useState([]);
     const [topUsers, setTopUsers] = useState([]);
-    const [systemStats, setSystemStats] = useState(null);
-
+    const [systemStats, setSystemStats] = useState(null);    
+    const [telemetry, setTelemetry] = useState(null);
+    
     const formatTime = time?.toLocaleTimeString("id-ID", {
         hour: "2-digit",
         minute: "2-digit",
@@ -162,6 +163,42 @@ export default function Dashboard() {
     fetchAdvanced();
 
 }, []);
+
+    useEffect(() => {
+
+    const fetchTelemetry =
+        async () => {
+
+        try {
+
+            const res =
+                await fetch(
+                    '/api/dashboard/telemetry'
+                )
+
+            const data =
+                await res.json()
+
+            setTelemetry(data)
+
+        } catch (err) {
+
+            console.error(err)
+        }
+    }
+
+    fetchTelemetry()
+
+    const interval =
+        setInterval(
+            fetchTelemetry,
+            3000
+        )
+
+    return () =>
+        clearInterval(interval)
+
+}, [])
 
     
     return (
@@ -353,6 +390,92 @@ export default function Dashboard() {
 
             </div>
         ))}
+
+    </div>
+
+</div>
+                <div className="mx-5 md:mx-10 mb-10">
+
+    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+
+        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
+
+            System Telemetry
+
+        </h2>
+
+        {telemetry && (
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+
+                <div className="bg-[#29293d] p-4 rounded">
+
+                    <p className="text-gray-400">
+
+                        Requests
+
+                    </p>
+
+                    <h3 className="text-2xl font-bold">
+
+                        {telemetry.requests}
+
+                    </h3>
+
+                </div>
+
+                <div className="bg-[#29293d] p-4 rounded">
+
+                    <p className="text-gray-400">
+
+                        Avg Latency
+
+                    </p>
+
+                    <h3 className="text-2xl font-bold">
+
+                        {Math.round(
+                            telemetry.avgLatency
+                        )}ms
+
+                    </h3>
+
+                </div>
+
+                <div className="bg-[#29293d] p-4 rounded">
+
+                    <p className="text-gray-400">
+
+                        Cache Hits
+
+                    </p>
+
+                    <h3 className="text-2xl font-bold">
+
+                        {telemetry.cacheHits}
+
+                    </h3>
+
+                </div>
+
+                <div className="bg-[#29293d] p-4 rounded">
+
+                    <p className="text-gray-400">
+
+                        Cache Misses
+
+                    </p>
+
+                    <h3 className="text-2xl font-bold">
+
+                        {telemetry.cacheMisses}
+
+                    </h3>
+
+                </div>
+
+            </div>
+        )}
 
     </div>
 
