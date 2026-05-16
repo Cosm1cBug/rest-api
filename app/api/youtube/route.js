@@ -1,11 +1,11 @@
 import { success, failure } from '@/lib/apiResponse'
 import { handleError } from '@/lib/errorHandler'
-import { requestLogger } from '@/middleware/requestLogger'
+import { requestLogger } from '@/lib/middleware/requestLogger'
 import { applyRateLimit } from '@/lib/rateLimit'
-import { verifyApiKey } from '@/middleware/apiKey'
+import { verifyApiKey } from '@/lib/middleware/apiKey'
 import { validateUrl } from '@/lib/security/ssrf'
 import { getCache, setCache } from '@/lib/cache'
-import { dedup } from '@/lib/inflight'
+import { dedupe } from '@/lib/inflight'
 import { withRetry } from '@/lib/retry'
 import { globalQueue } from '@/lib/queue'
 import { youtube } from '@/lib/scrapers/youtube'
@@ -38,15 +38,27 @@ export async function POST(req) {
         }
 
         const result = await dedupe(cacheKey, async () => {
-            retrun await globalQueue.add(async () => {
-                retrun await withRetry(async () => {
-                    retrun await youtube(body.url)
+            return await globalQueue.add(async () => {
+                return await withRetry(async () => {
+                    return await youtube(body.url)
                 })
             })
         })
 
         await setCache(cacheKey, result, 300)
         return success(result)
+
+        await logApiMetric({
+            userId: user?._id?.toString(),
+            endpoint: 'api/youtube',
+            method: 'POST',
+            status: 200,
+            success: true,
+            latency: Date.now() - start,
+            ip,
+            cacheHit: true
+        })
+        
     } catch (err) {
         return handleError(err)
     }

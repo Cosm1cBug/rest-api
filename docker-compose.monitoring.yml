@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+
+  prometheus: 
+    image: prom/prometheus
+    ports: 
+      - '9000:9000'
+
+  grafana: 
+    image: grafana/grafana
+    ports:
+      - '3001:3000'
