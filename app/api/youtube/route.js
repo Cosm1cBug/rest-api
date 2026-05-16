@@ -60,6 +60,18 @@ export async function POST(req) {
         return success(result)
         
     } catch (err) {
+        completeRequest({
+            requestId: tracker.requestId,
+            start: tracker.start,
+            status: 500
+        })
+
+        await logApiMetric({
+            req,
+            endpoint: '/api/youtube',
+            status: 500,
+            duration: Date.now() - tracker.start
+})
         return handleError(err)
     }
 }
