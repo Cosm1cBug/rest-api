@@ -1,5 +1,5 @@
 import "./globals.css";
-import Providers from '@/components/providers.jsx'
+import Providers from '../components/providers.jsx'
 
 export const metadata = {
     title: 'ORBITNODE API',
