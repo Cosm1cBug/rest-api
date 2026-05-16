@@ -1,6 +1,7 @@
 import { success, failure } from '@/lib/apiResponse.js'
 import { handleError } from '@/lib/errorHandler.js'
-import { requestLogger } from '@/lib/middleware/requestLogger.js'
+import { requestLogger, completeRequest } from '@/lib/middleware/requestLogger.js'
+import { logApiMetric } from '@/lib/metricsLogger.js'
 import { applyRateLimit } from '@/lib/rateLimit.js'
 import { verifyApiKey } from '@/lib/middleware/apiKey.js'
 import { validateUrl } from '@/lib/security/ssrf.js'
@@ -12,7 +13,7 @@ import { youtube } from '@/lib/scrapers/youtube.js'
 
 export async function POST(req) {
     try {
-        await requestLogger(req)
+        const tracker = await requestLogger(req)
 
         const ip = req.headers.get('x-forwarded-for') || 'unknown'
 
@@ -46,8 +47,6 @@ export async function POST(req) {
         })
 
         await setCache(cacheKey, result, 300)
-        return success(result)
-
         await logApiMetric({
             userId: user?._id?.toString(),
             endpoint: 'api/youtube',
@@ -58,6 +57,7 @@ export async function POST(req) {
             ip,
             cacheHit: true
         })
+        return success(result)
         
     } catch (err) {
         return handleError(err)
