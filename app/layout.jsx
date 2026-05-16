@@ -1,13 +1,22 @@
-import "@/app/globals.css";
-import { UserProvider } from "@/context/userContext";
-import { SessionProvider } from "next-auth/react";
+import "./globals.css";
+import Providers from '@/components/providers.jsx'
 
-export default function App({ Component, pageProps: { session, ...pageProps } }) {
+export const metadata = {
+    title: 'ORBITNODE API',
+    description: 'A platform for all your API needs.'
+}
+
+
+export default function App({
+    children
+}) {
     return (
-        <SessionProvider session={session}>
-            <UserProvider>
-                <Component {...pageProps} />
-            </UserProvider>
-        </SessionProvider>
-    );
+        <html lang='en'>
+            <body>
+                <Providers>
+                    {children}
+                </Providers>
+            </body>
+        </html>
+    )
 }
