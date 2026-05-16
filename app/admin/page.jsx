@@ -1,12 +1,12 @@
-import { useUser } from "@/context/userContext";
-import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import Navbar from "@/components/navbar";
-import Alert from "@/components/alert";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../api/auth/[...nextauth]";
-import dbConnect from "../../../lib/mongodb";
-import User from "../../../models/user";
+import { useUser } from "@/context/userContext"
+import { useRouter } from "next/router"
+import { useEffect, useState } from "react"
+import Navbar from "@/components/navbar"
+import Alert from "@/components/alert"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../api/auth/[...nextauth]/route.js"
+import dbConnect from "../../../lib/mongodb.js"
+import User from "../../../models/user.js"
 
 export default function Dashboard({ users, dataUser }) {
     const user = useUser();

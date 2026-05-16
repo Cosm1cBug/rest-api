@@ -1,11 +1,12 @@
-module.exports = {
+export default {
     apps: [
         {
             name: 'rest-api',
-            script: 'node_modules/next/dist/bin/next',
+            script: 'npm',
             args: 'start',
-            instances: 'max',
-            exec_mode: 'cluster'
+            instances: '1',
+            exec_mode: 'fork', //cluster
+            watch: false
         },
         {
             name: 'scraper-worker',
