@@ -22,7 +22,7 @@ const worker = new Worker('scraper-queue', async job => {
         trackWorkerCompleted()
 
         return { success: true }
-
+        
     } catch (err) {
         trackWorkerFailed()
         throw err
@@ -33,6 +33,16 @@ const worker = new Worker('scraper-queue', async job => {
     connection: redis,
     concurrency: 5
 })
+
+// Worker heartbeat + online status
+setInterval(() => {
+
+    updateQueueStats({
+        workersOnline: 1,
+        heartbeat: Date.now()
+    })
+
+}, 5000)
 
 worker.on('completed', async () => {
 

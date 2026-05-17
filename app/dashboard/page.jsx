@@ -17,6 +17,7 @@ export default function Dashboard() {
     const [queueStats, setQueueStats] = useState(null);
     const [chartData, setChartData] = useState([]);
     const [ipAnalystics, setIPAnalytics] = useState([]);
+    const [systemInfo, setSystemInfo] = useState(null);
 
     const formatTime = time?.toLocaleTimeString("id-ID", {
         hour: "2-digit",
@@ -242,6 +243,29 @@ export default function Dashboard() {
         return () => clearInterval(interval)
 
     }, [])
+
+    useEffect(() => {
+        const fetchSystem = async () => {
+            try {
+                const res = await fetch('/api/dashboard/system')
+
+                const data = await res.json()
+
+                setSystemInfo(data)
+
+            } catch (err) {
+                console.error(err)
+            }
+        }
+
+        fetchSystem()
+
+        const interval = setInterval(fetchSystem, 5000)
+
+         return () =>
+            clearInterval(interval)
+
+    }, [])
     
     return (
         <div>
@@ -335,6 +359,7 @@ export default function Dashboard() {
                             </div>
                         ))}
                     </div>
+                    
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top Users</h2>
                         {topUsers.map((item, idx) => (
@@ -345,6 +370,7 @@ export default function Dashboard() {
                         ))}
                     </div>
                 </div>
+
                 <div className="mx-5 md:mx-10 mb-10">
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">System Telemetry</h2>
@@ -354,23 +380,18 @@ export default function Dashboard() {
                                     <p className="text-gray-400">Requests</p>
                                     <h3 className="text-2xl font-bold">{telemetry.requests}</h3>
                                 </div>
-
                                 <div className="bg-[#29293d] p-4 rounded">
                                     <p className="text-gray-400">Avg Latency</p>
                                     <h3 className="text-2xl font-bold">{Math.round(telemetry.avgLatency)}ms</h3>
                                 </div>
-
                                 <div className="bg-[#29293d] p-4 rounded">
                                     <p className="text-gray-400">Cache Hits</p>
                                     <h3 className="text-2xl font-bold">{telemetry.cacheHits}</h3>
-
                                 </div>
-
                                 <div className="bg-[#29293d] p-4 rounded">
                                     <p className="text-gray-400">Cache Misses</p>
                                     <h3 className="text-2xl font-bold">{telemetry.cacheMisses}</h3>
                                 </div>
-
                                 <div className="bg-[#29293d] p-4 rounded">
                                     <p className="text-gray-400">Cache Hit Ratio</p>
                                     <h3 className="text-2xl font-bold">{telemetry.cacheHitRatio}%</h3>
@@ -379,6 +400,7 @@ export default function Dashboard() {
                         )}
                     </div>
                 </div>
+
                 <div className="mx-5 md:mx-10 mb-10">
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Queue Metrics</h2>
@@ -404,6 +426,7 @@ export default function Dashboard() {
                         )}
                     </div>
                 </div>
+
                 <div className="mx-5 md:mx-10 mb-10">
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Request Traffic</h2>
@@ -420,6 +443,7 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+
                 <div className="mx-5 md:mx-10 mb-10">
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Latency Analytics</h2>
@@ -436,6 +460,7 @@ export default function Dashboard() {
                         </div>
                     </div>
                 </div>
+
                 <div className="mx-5 md:mx-10 mb-10">
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top IP Analytics</h2>
@@ -449,6 +474,33 @@ export default function Dashboard() {
                         )}</div>
                     </div>
                 </div>
+
+                <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">System Status</h2>
+                        {systemInfo && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">CPUs</p>
+                                    <h3 className="text-2xl font-bold">{systemInfo.cpus}</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Free Memory</p>
+                                    <h3 className="text-xl font-bold">{Math.round(systemInfo.freeMemory /1024 /1024 /1024)} GB</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Platform</p>
+                                    <h3 className="text-xl font-bold">{systemInfo.platform}</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Uptime</p>
+                                    <h3 className="text-xl font-bold">{Math.round(systemInfo.uptime /3600)} hrs</h3>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
