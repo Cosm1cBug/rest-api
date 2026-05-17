@@ -2,6 +2,7 @@
 import Navbar from "@/components/navbar"
 import { useState, useEffect } from "react"
 import io from 'socket.io-client'
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts"
 
 export default function Dashboard() {
     const [totalViews, setTotalViews] = useState(null);
@@ -13,7 +14,10 @@ export default function Dashboard() {
     const [topUsers, setTopUsers] = useState([]);
     const [systemStats, setSystemStats] = useState(null);    
     const [telemetry, setTelemetry] = useState(null);
-    
+    const [queueStats, setQueueStats] = useState(null);
+    const [chartData, setChartData] = useState([]);
+    const [ipAnalystics, setIPAnalytics] = useState([]);
+
     const formatTime = time?.toLocaleTimeString("id-ID", {
         hour: "2-digit",
         minute: "2-digit",
@@ -126,80 +130,118 @@ export default function Dashboard() {
             ].slice(0, 20));
         });
 
+        socket.on('telemetry-update', data => {
+            setTelemetry(data)
+        })
+
         return () => {
             socket.disconnect();
         };
     }, []);
 
     useEffect(() => {
+        const fetchAdvanced = async () => {
+            try {
+                const res = await fetch('/api/dashboard/advanced');
+                const data = await res.json();
 
-    const fetchAdvanced =
-        async () => {
+                setTopEndpoints(data.topEndpoints || []);
+                setTopUsers(data.topUsers || []);
 
-        try {
+            } catch (err) {
+                console.error(err);
+            }
+        };
 
-            const res =
-                await fetch(
-                    '/api/dashboard/advanced'
-                );
+        fetchAdvanced();
 
-            const data =
-                await res.json();
-
-            setTopEndpoints(
-                data.topEndpoints || []
-            );
-
-            setTopUsers(
-                data.topUsers || []
-            );
-
-        } catch (err) {
-
-            console.error(err);
-        }
-    };
-
-    fetchAdvanced();
-
-}, []);
+    }, []);
 
     useEffect(() => {
+        const fetchTelemetry = async () => {
+            try {
+                const res = await fetch('/api/dashboard/telemetry')
+                const data = await res.json()
 
-    const fetchTelemetry =
-        async () => {
+                setTelemetry(data)
 
-        try {
-
-            const res =
-                await fetch(
-                    '/api/dashboard/telemetry'
-                )
-
-            const data =
-                await res.json()
-
-            setTelemetry(data)
-
-        } catch (err) {
-
-            console.error(err)
+            } catch (err) {
+                console.error(err)
+            }
         }
-    }
 
-    fetchTelemetry()
+        fetchTelemetry()
 
-    const interval =
-        setInterval(
-            fetchTelemetry,
-            3000
-        )
+        const interval = setInterval(fetchTelemetry, 3000)
 
-    return () =>
-        clearInterval(interval)
+        return () => clearInterval(interval)
 
-}, [])
+    }, [])
 
+    useEffect(() => {
+        const fetchQueue = async () => {
+            try {
+                const res = await fetch('/api/dashboard/queue')
+                const data = await res.json()
+
+                setQueueStats(data)
+            } catch (err) {
+                console.log(err)
+            }
+        }
+        fetchQueue()
+
+        const interval = setInterval(fetchQueue, 3000)
+
+        return () => clearInterval(interval)
+    }, [])
+
+    useEffect(() => {
+        const fetchCharts = async () => {
+            try {
+                const res = await fetch('/api/dashboard/charts')
+                const data = await res.json()
+
+                const formatted = data.hourly.map(item => ({
+                    hour: item._id.hour,
+                    requests: item.requests,
+                    latency: Math.round(item.avgLatency)
+                }))
+
+                setChartData(formatted)
+            } catch (err) {
+                console.error(err)
+            }
+        }
+
+        fetchCharts()
+
+        const interval = setInterval(fetchCharts, 10000)
+
+        return () => clearInterval(interval)
+
+    }, [])
+
+    useEffect(() => {
+        const fetchIPs = async () => {
+            try {
+                const res = await fetch('/api/dashboard/ip')
+                const data = await res.json()
+
+                setIpAnalytics(data.topIPs || [])
+
+            } catch (err) {
+                console.error(err)
+            }
+        }
+
+        fetchIPs()
+
+        const interval = setInterval(fetchIPs, 5000)
+
+        return () => clearInterval(interval)
+
+    }, [])
     
     return (
         <div>
@@ -271,218 +313,144 @@ export default function Dashboard() {
                     </div>
                 </div>
                 <div className="mx-5 md:mx-10 mb-10">
-
-    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
-
-        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
-
-            Live Requests
-
-        </h2>
-
-        <div className="space-y-3 max-h-[400px] overflow-y-auto">
-
-            {liveRequests.map((req, idx) => (
-
-                <div
-                    key={idx}
-                    className="bg-[#29293d] p-4 rounded"
-                >
-
-                    <p className="text-gray-300">
-
-                        <strong>Endpoint:</strong>
-
-                        {' '}
-
-                        {req.endpoint}
-
-                    </p>
-
-                    <p className="text-gray-300">
-
-                        <strong>Status:</strong>
-
-                        {' '}
-
-                        {req.status}
-
-                    </p>
-
-                    <p className="text-gray-300">
-
-                        <strong>Duration:</strong>
-
-                        {' '}
-
-                        {req.duration}ms
-
-                    </p>
-
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Live Requests</h2>
+                        <div className="space-y-3 max-h-[400px] overflow-y-auto">{liveRequests.map((req, idx) => (
+                            <div key={idx} className="bg-[#29293d] p-4 rounded">
+                                <p className="text-gray-300"><strong>Endpoint:</strong>{' '}{req.endpoint}</p>
+                                <p className="text-gray-300"><strong>Status:</strong>{' '}{req.status}</p>
+                                <p className="text-gray-300"><strong>Duration:</strong>{' '}{req.duration}ms</p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
-            ))}
-
-        </div>
-
-    </div>
-
-</div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mx-5 md:mx-10 mb-10">
-
-    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
-
-        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
-
-            Top Endpoints
-
-        </h2>
-
-        {topEndpoints.map((item, idx) => (
-
-            <div
-                key={idx}
-                className="flex justify-between py-2 border-b border-gray-700"
-            >
-
-                <span className="text-gray-300">
-
-                    {item._id}
-
-                </span>
-
-                <span className="text-gray-400">
-
-                    {item.count}
-
-                </span>
-
-            </div>
-        ))}
-
-    </div>
-
-    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
-
-        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
-
-            Top Users
-
-        </h2>
-
-        {topUsers.map((item, idx) => (
-
-            <div
-                key={idx}
-                className="flex justify-between py-2 border-b border-gray-700"
-            >
-
-                <span className="text-gray-300">
-
-                    {item._id}
-
-                </span>
-
-                <span className="text-gray-400">
-
-                    {item.count}
-
-                </span>
-
-            </div>
-        ))}
-
-    </div>
-
-</div>
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top Endpoints</h2>
+                        {topEndpoints.map((item, idx) => (
+                            <div key={idx} className="flex justify-between py-2 border-b border-gray-700">
+                                <span className="text-gray-300">{item._id} </span>
+                                <span className="text-gray-400">{item.count}</span>
+                            </div>
+                        ))}
+                    </div>
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top Users</h2>
+                        {topUsers.map((item, idx) => (
+                            <div key={idx} className="flex justify-between py-2 border-b border-gray-700">
+                                <span className="text-gray-300">{item._id}</span>
+                                <span className="text-gray-400">{item.count}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
                 <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">System Telemetry</h2>
+                        {telemetry && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Requests</p>
+                                    <h3 className="text-2xl font-bold">{telemetry.requests}</h3>
+                                </div>
 
-    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Avg Latency</p>
+                                    <h3 className="text-2xl font-bold">{Math.round(telemetry.avgLatency)}ms</h3>
+                                </div>
 
-        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Cache Hits</p>
+                                    <h3 className="text-2xl font-bold">{telemetry.cacheHits}</h3>
 
-            System Telemetry
+                                </div>
 
-        </h2>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Cache Misses</p>
+                                    <h3 className="text-2xl font-bold">{telemetry.cacheMisses}</h3>
+                                </div>
 
-        {telemetry && (
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-
-                <div className="bg-[#29293d] p-4 rounded">
-
-                    <p className="text-gray-400">
-
-                        Requests
-
-                    </p>
-
-                    <h3 className="text-2xl font-bold">
-
-                        {telemetry.requests}
-
-                    </h3>
-
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Cache Hit Ratio</p>
+                                    <h3 className="text-2xl font-bold">{telemetry.cacheHitRatio}%</h3>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-
-                <div className="bg-[#29293d] p-4 rounded">
-
-                    <p className="text-gray-400">
-
-                        Avg Latency
-
-                    </p>
-
-                    <h3 className="text-2xl font-bold">
-
-                        {Math.round(
-                            telemetry.avgLatency
-                        )}ms
-
-                    </h3>
-
+                <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Queue Metrics</h2>
+                        {queueStats && (
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Waiting</p>
+                                    <h3 className="text-2xl font-bold">{queueStats.waiting || 0}</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Active</p>
+                                    <h3 className="text-2xl font-bold">{queueStats.active || 0}</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Completed</p>
+                                    <h3 className="text-2xl font-bold">{queueStats.completed || 0}</h3>
+                                </div>
+                                <div className="bg-[#29293d] p-4 rounded">
+                                    <p className="text-gray-400">Failed</p>
+                                    <h3 className="text-2xl font-bold">{queueStats.failed || 0}</h3>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-
-                <div className="bg-[#29293d] p-4 rounded">
-
-                    <p className="text-gray-400">
-
-                        Cache Hits
-
-                    </p>
-
-                    <h3 className="text-2xl font-bold">
-
-                        {telemetry.cacheHits}
-
-                    </h3>
-
+                <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Request Traffic</h2>
+                        <div className="h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3"/>
+                                    <XAxis dataKey="hour"/>
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Line type="monotone" dataKey="requests" stroke="#483AA0" strokeWidth={3}/>
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                 </div>
-
-                <div className="bg-[#29293d] p-4 rounded">
-
-                    <p className="text-gray-400">
-
-                        Cache Misses
-
-                    </p>
-
-                    <h3 className="text-2xl font-bold">
-
-                        {telemetry.cacheMisses}
-
-                    </h3>
-
+                <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Latency Analytics</h2>
+                        <div className="h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3"/>
+                                    <XAxis dataKey="hour"/>
+                                    <YAxis />
+                                    <Tooltip />
+                                    <Line type="monotone" dataKey="latency" stroke="#00C49F" strokeWidth={3}/>
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
                 </div>
-
-            </div>
-        )}
-
-    </div>
-
-</div>
+                <div className="mx-5 md:mx-10 mb-10">
+                    <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
+                        <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top IP Analytics</h2>
+                        <div className="space-y-3">{ipAnalytics.map(
+                            ([ip, data], idx) => (
+                                <div key={idx} className="bg-[#29293d] p-4 rounded" >
+                                    <p className="text-gray-300"><strong>IP:</strong>{' '} {ip} </p>
+                                    <p className="text-gray-300"><strong>Requests:</strong> {' '} {data.requests}</p>
+                                </div>
+                            )
+                        )}</div>
+                    </div>
+                </div>
             </div>
         </div>
-        
     );
 }
 

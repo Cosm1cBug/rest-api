@@ -12,8 +12,7 @@ export async function GET() {
 
     return new Response(metrics, {
         headers: {
-            'Content-Type':
-            register.contentType
+            'Content-Type': register.contentType
         }
     })
 }

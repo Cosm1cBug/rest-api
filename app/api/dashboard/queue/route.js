@@ -1,19 +1,12 @@
 import { scraperQueue } from '@/lib/bullmq.js'
+import { getQueueStats } from '@/lib/queueTelemetry.js'
 
 export async function GET() {
 
-    const waiting = await scraperQueue.getWaitingCount()
-
-    const active = await scraperQueue.getActiveCount()
-
-    const completed = await scraperQueue.getCompletedCount()
-
-    const failed = await scraperQueue.getFailedCount()
+    const counts = await scraperQueue.getJobCounts()
 
     return Response.json({
-        waitng,
-        active,
-        completed,
-        failed
+        ...counts,
+        telemetry: getQueueStats()
     })
 }
