@@ -1,5 +1,4 @@
-hereimport { getTelemetry }
-from '@/lib/telemetry.js'
+import { getTelemetry } from '@/lib/telemetry.js'
 
 export async function GET() {
 

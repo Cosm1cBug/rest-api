@@ -1,4 +1,4 @@
-Enterimport { initSocket } from '@/lib/socket.js'
+import { initSocket } from '@/lib/socket.js'
 
 export async function GET() {
 
