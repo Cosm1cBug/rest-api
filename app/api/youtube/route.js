@@ -10,6 +10,11 @@ import { dedupe } from '@/lib/inflight.js'
 import { withRetry } from '@/lib/retry.js'
 import { globalQueue } from '@/lib/queue.js'
 import { youtube } from '@/lib/scrapers/youtube.js'
+import { youtubeSchema } from '@/lib/validators/youtube.js'
+
+export const runtime = 'nodejs'
+
+export const maxDuration = 30
 
 export async function POST(req) {
     try {
@@ -24,7 +29,21 @@ export async function POST(req) {
 
         await verifyApiKey(req)
 
-        const body = await req.json()
+        const raw = await req.json()
+
+        if (raw.length > 1024 * 1024) {
+            return Response.json({
+                error: 'Payload too large'
+            },
+            {
+                status: 413
+            }
+        )}
+
+        const text = JSON.parse(raw)
+
+        const body = youtubeSchema.parse(text)
+
         if (!body.url) {
             return failure('URL missing', 400)
         }
@@ -75,3 +94,4 @@ export async function POST(req) {
         return handleError(err)
     }
 }
+

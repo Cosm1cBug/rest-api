@@ -5,6 +5,9 @@ import { updateQueueStats } from '@/lib/queueTelemetry.js'
 import { trackWorkerCompleted, trackWorkerFailed } from '@/lib/telemetry.js'
 
 const worker = new Worker('scraper-queue', async job => {
+    
+    const start = Date.now()
+
     try {
         console.log('[Worker] Processing:', job.name)
         // YOUR SCRAPER LOGIC HERE

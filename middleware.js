@@ -11,6 +11,11 @@ export function middleware(req) {
     )
 
     response.headers.set(
+        'Content-Security-Policy',
+        "default-src 'self'"
+    )
+
+    response.headers.set(
         'X-Content-Type-Options',
         'nosniff'
     )

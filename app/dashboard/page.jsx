@@ -16,7 +16,7 @@ export default function Dashboard() {
     const [telemetry, setTelemetry] = useState(null);
     const [queueStats, setQueueStats] = useState(null);
     const [chartData, setChartData] = useState([]);
-    const [ipAnalystics, setIPAnalytics] = useState([]);
+    const [ipAnalytics, setIPAnalytics] = useState([]);
     const [systemInfo, setSystemInfo] = useState(null);
 
     const formatTime = time?.toLocaleTimeString("id-ID", {

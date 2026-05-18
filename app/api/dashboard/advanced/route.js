@@ -1,5 +1,6 @@
 import ApiLog from '@/models/apiLog.js'
 import connectDB from '@/lib/mongodb.js'
+import { dashboardRateLimit } from '@/lib/middleware/adminRateLimit'
 
 export async function GET() {
 
@@ -8,6 +9,19 @@ export async function GET() {
     const now = new Date()
 
     const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+
+    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+
+    const { success } = await dashboardRateLimit.limit(ip)
+
+    if (!success) {
+        return Response.json({
+            error: 'Too many requests'
+        },
+        {
+            status: 429
+        })
+    }
 
     const [
         hourlyHits,
