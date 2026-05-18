@@ -224,21 +224,21 @@ export default function Dashboard() {
     }, [])
 
     useEffect(() => {
-        const fetchIPs = async () => {
+        const fetchIPAnalytics = async () => {
             try {
-                const res = await fetch('/api/dashboard/ip')
+                const res = await fetch('/api/dashboard/ip-analytics')
                 const data = await res.json()
 
-                setIpAnalytics(data.topIPs || [])
+                setIpAnalytics(data?.topIPs || [])
 
             } catch (err) {
-                console.error(err)
+                console.error('IP Analytics Fetch Failed.',err)
             }
         }
 
-        fetchIPs()
+        fetchIPAnalytics()
 
-        const interval = setInterval(fetchIPs, 5000)
+        const interval = setInterval(fetchIPAnalytics, 5000)
 
         return () => clearInterval(interval)
 
@@ -359,7 +359,7 @@ export default function Dashboard() {
                             </div>
                         ))}
                     </div>
-                    
+
                     <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg">
                         <h2 className="text-2xl font-bold text-[#483AA0] mb-5">Top Users</h2>
                         {topUsers.map((item, idx) => (

@@ -1,13 +1,10 @@
-import {
-    getTopIPs
-}
-from '@/lib/ipAnalytics.js'
+import { getTopIPs } from '@/lib/ipAnalytics.js'
 
 export async function GET() {
 
-    return Response.json({
+    return NextResponse.json({
 
-        topIPs:
+        topIPs: 
             getTopIPs()
     })
 }
