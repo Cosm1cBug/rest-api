@@ -1,8 +1,8 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import Navbar from "@/components/navbar";
+import Navbar from "@/components/navbar.jsx";
 import Link from "next/link";
-import { useUser } from "@/context/userContext";
+import { useUser } from "@/context/userContext.jsx";
 
 export default function Slug() {
     const router = useRouter();
