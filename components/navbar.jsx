@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { useRef, useState, useEffect } from 'react';
 import { useSession, signOut } from "next-auth/react";
-import { useUser } from '@/contexts/userContext.js';
+import { useUser } from '@/contexts/userContext.jsx';
 
 export default function Navbar() {
     const router = useRouter()
