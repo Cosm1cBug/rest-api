@@ -1,42 +1,28 @@
 import NextAuth from 'next-auth'
-
 import CredentialsProvider from 'next-auth/providers/credentials'
 
 const handler = NextAuth({
 
     providers: [
-
         CredentialsProvider({
-
             name: 'credentials',
-
             credentials: {
-
-                username: {},
-
-                password: {}
+                username: {
+                    label: 'Username',
+                    type: 'text'
+                },
+                password: {
+                    label: 'Password',
+                    type: 'password'
+                }
             },
 
             async authorize(credentials) {
 
-                /*
-                |--------------------------------------------------------------------------
-                | TEMP LOGIN
-                |--------------------------------------------------------------------------
-                */
-
-                if (
-
-                    credentials.username === 'admin' &&
-
-                    credentials.password === 'adminX'
-
-                ) {
+                if ( credentials.username === 'admin' && credentials.password === 'adminX') {
 
                     return {
-
                         id: '1',
-
                         name: 'Admin'
                     }
                 }
@@ -56,8 +42,6 @@ const handler = NextAuth({
 })
 
 export {
-
     handler as GET,
-
     handler as POST
 }
