@@ -31,7 +31,9 @@ const worker = new Worker('scraper-queue', async job => {
 },
 {
     connection: redis,
-    concurrency: 5
+    concurrency: 5,
+    removeOnComplete: true,
+    removeOnFail: 5000
 })
 
 // Worker heartbeat + online status
@@ -44,16 +46,20 @@ setInterval(() => {
 
 }, 5000)
 
-worker.on('completed', async () => {
+worker.on('completed', async (job) => {
 
     const counts = await worker.getJobCounts()
     updateQueueStats(counts)
+
+    console.log(`[Worker] Completed ${job.id}`)
 })
 
-worker.on('failed', async () => {
+worker.on('failed', async (job, err) => {
     
     const counts = await worker.getJobCounts()
     updateQueueStats(counts)
+
+    console.log(`[Worker] Failed ${job.id}`)
 })
 
 console.log('[Worker] Started')

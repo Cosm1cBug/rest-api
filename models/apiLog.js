@@ -50,6 +50,7 @@ const apiLogSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
+        expires: '90d',
         index: true
     }
 })
