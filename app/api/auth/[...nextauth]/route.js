@@ -60,7 +60,7 @@ const handler = NextAuth({
                 return {
                     id: user._id.toString(),
                     name: user.username,
-                    role: user.role || 'user'
+                    role: user.role || 'basic'
                 }
             }
         })

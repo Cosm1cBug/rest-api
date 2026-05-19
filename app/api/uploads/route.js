@@ -1,4 +1,4 @@
-import fs from 'fs'
+import fs from 'fs/promises'
 import path from 'path'
 
 const UPLOADS_DIR = path.join(process.cwd(), 'tmp')
@@ -57,7 +57,7 @@ export async function GET(req) {
     }
 
     try {
-        await fs.promises.access(filePath, fs.constants.R_OK)
+        await fs.access(filePath, fs.constants.R_OK)
     } catch {
         return Response.json(
             { success: false, error: 'File not found' },
@@ -67,7 +67,7 @@ export async function GET(req) {
 
     let stat
     try {
-        stat = await fs.promises.stat(filePath)
+        stat = await fs.stat(filePath)
     } catch {
         return Response.json(
             { success: false, error: 'Could not read file metadata' },

@@ -6,13 +6,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 export default function Register() {
     const [step, setStep] = useState(1);
     const [loading, setLoading] = useState(false);
     const [loadingResend, setLoadingResend] = useState(false);
     const [resendCooldown, setResendCooldown] = useState(30);
     const [showPassword, setShowPassword] = useState(false);
-    const [form, setForm] = useState({ name: '', email: '', password: '', otp: '' });
+    const [form, setForm] = useState({ username: '', email: '', password: '', otp: '' });
     const [showAlert, setShowAlert] = useState({ message: "", visible: false });
 
     const router = useRouter();
@@ -173,7 +175,7 @@ export default function Register() {
                                         name="username"
                                         className="w-full p-2 bg-[#2c2c3a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#483AA0]"
                                         placeholder="Enter your username"
-                                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                                        onChange={(e) => setForm({ ...form, username: e.target.value })}
                                         required
                                     />
                                 </div>
@@ -258,5 +260,3 @@ export default function Register() {
         </div>
     );
 }
-
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
