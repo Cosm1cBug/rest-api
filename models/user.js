@@ -1,15 +1,35 @@
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
+    apiKey: String,
+    keyId: {
+        type: String,
+        index: true
+    },
+    keyHash: string,
     name: String,
-    email: { type: String, unique: true },
+    email: { 
+        type: String, 
+        unique: true 
+    },
     password: String,
-    status: { type: String, default: "basic" },
+    status: { 
+        type: String, 
+        default: "basic" 
+    },
     endDate: Date,
-    image: { type: String, default: "default.jpg" },
-    apikey: String,
-    request_today: { type: Number, default: 0 },
-    request_all: { type: Number, default: 0 },
+    image: { 
+        type: String, 
+        default: "default.jpg" 
+    },
+    request_today: { 
+        type: Number, 
+        default: 0 
+    },
+    request_all: { 
+        type: Number, 
+        default: 0 
+    },
     updateAt: Date
 });
 

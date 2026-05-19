@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth'
 import bcrypt from 'bcryptjs'
 import User from '@/models/user.js'
+import connectDB from '@/lib/mongodb.js'
 import CredentialsProvider from 'next-auth/providers/credentials'
 
 const handler = NextAuth({
@@ -22,6 +23,8 @@ const handler = NextAuth({
             },
 
             async authorize(credentials) {
+
+                await connectDB()
 
                 if (!credentials?.username || !credentials?.password) {
                     return null
@@ -74,9 +77,7 @@ const handler = NextAuth({
         },
 
         async session({ session, token }) {
-
             session.user.role = token.role
-
             return session
         }
     },

@@ -10,7 +10,7 @@ export async function GET() {
             $group: {
                 _id: {
                     hour: {
-                        $hour: '$createdat'
+                        $hour: '$createdAt'
                     }
                 },
                 requests: {

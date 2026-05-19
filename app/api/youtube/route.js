@@ -6,7 +6,7 @@ import { applyRateLimit } from '@/lib/rateLimit.js'
 import { verifyApiKey } from '@/lib/middleware/apiKey.js'
 import { validateUrl } from '@/lib/security/ssrf.js'
 import { getCache, setCache } from '@/lib/cache.js'
-import { dedupe } from '@/lib/inflight.js'
+import { dedup } from '@/lib/inflight.js'
 import { withRetry } from '@/lib/retry.js'
 import { globalQueue } from '@/lib/queue.js'
 import { youtube } from '@/lib/scrapers/youtube.js'
@@ -27,7 +27,7 @@ export async function POST(req) {
             return failure('Rate limit exceeded', 429)
         }
 
-        await verifyApiKey(req)
+        const user = await verifyApiKey(req)
 
         const raw = await req.json()
 
@@ -40,9 +40,7 @@ export async function POST(req) {
             }
         )}
 
-        const text = JSON.parse(raw)
-
-        const body = youtubeSchema.parse(text)
+        const body = youtubeSchema.parse(raw)
 
         if (!body.url) {
             return failure('URL missing', 400)
@@ -57,7 +55,7 @@ export async function POST(req) {
             return success(cached)
         }
 
-        const result = await dedupe(cacheKey, async () => {
+        const result = await dedup(cacheKey, async () => {
             return await globalQueue.add(async () => {
                 return await withRetry(async () => {
                     return await youtube(body.url)

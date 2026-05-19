@@ -2,7 +2,7 @@ import ApiLog from '@/models/apiLog.js'
 import connectDB from '@/lib/mongodb.js'
 import { dashboardRateLimit } from '@/lib/middleware/adminRateLimit'
 
-export async function GET() {
+export async function GET(req) {
 
     await connectDB()
 

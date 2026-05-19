@@ -1,4 +1,4 @@
-import { Worker } from 'bullmq'
+import { Worker, scraperQueue } from '@/lib/bullmq.js'
 import { redis } from '@/lib/redis.js'
 import { youtube } from '@/lib/scrapers/youtube.js'
 import { updateQueueStats } from '@/lib/queueTelemetry.js'
@@ -51,7 +51,7 @@ setInterval(() => {
 
 worker.on('completed', async (job) => {
 
-    const counts = await worker.getJobCounts()
+    const counts = await scraperQueue.getJobCounts()
     updateQueueStats(counts)
 
     console.log(`[Worker] Completed ${job.id}`)
@@ -59,7 +59,7 @@ worker.on('completed', async (job) => {
 
 worker.on('failed', async (job, err) => {
     
-    const counts = await worker.getJobCounts()
+    const counts = await scraperQueue.getJobCounts()
     updateQueueStats(counts)
 
     console.log(`[Worker] Failed ${job.id}`)
