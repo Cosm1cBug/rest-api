@@ -4,12 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev -p $PORT",
+    "dev": "next dev",
     "build": "next build",
-    "start": "next start -p $PORT",
+    "start": "next start",
     "lint": "next lint",
     "worker": "node workers/scraper.worker.js",
-    "dashboard": "next dev -p $DASHBOARD_PORT",
+    "dashboard": "next dev",
     "kill:dev": "fuser -k 3000/tcp || true"
   },
   "dependencies": {
