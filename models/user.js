@@ -3,14 +3,18 @@ import mongoose from 'mongoose';
 const UserSchema = new mongoose.Schema({
     apiKey: {
         type: String,
+        unique: true,
         index: true
     },
     keyId: {
         type: String,
-        index: true
+        unique: true,
+        index: true,
+        sparse: true
     },
     keyHash: {
-        type: String
+        type: String,
+        required: true
     },
     name: {
         type: String
@@ -27,7 +31,8 @@ const UserSchema = new mongoose.Schema({
         required: true
     },
     status: { 
-        type: String, 
+        type: String,
+        enum: ['basic', 'standard', 'premium', 'admin'],
         default: "basic" 
     },
     endDate: {
@@ -44,11 +49,10 @@ const UserSchema = new mongoose.Schema({
     request_all: { 
         type: Number, 
         default: 0 
-    },
-    updatedAt: Date
+    }
+},
+{
+    timestamps: true
 });
-
-UserSchema.index({ email: 1 })
-UserSchema.index({ apiKey: 1 })
 
 export default mongoose.models.User || mongoose.model("User", UserSchema);
