@@ -4,7 +4,7 @@ import Alert from "@/components/alert.jsx";
 import { useState, useEffect } from "react";
 import { useUser } from "@/context/userContext.jsx";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/router";
+import { useRouter } from "next/navigation";
 
 export default function Profile() { 
     const [form, setForm] = useState({ name: "", apikey: "" });

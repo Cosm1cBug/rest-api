@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link';
-import { useRouter } from 'next/router';
+import { useRouter } from 'next/navigation';
 import { useRef, useState, useEffect } from 'react';
 import { useSession, signOut } from "next-auth/react";
 import { useUser } from '@/contexts/userContext.jsx';

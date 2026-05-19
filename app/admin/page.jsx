@@ -1,5 +1,5 @@
 import { useUser } from "@/context/userContext.jsx"
-import { useRouter } from "next/router"
+import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import Navbar from "@/components/navbar.jsx"
 import Alert from "@/components/alert.jsx"
