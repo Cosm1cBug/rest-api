@@ -1,52 +1,110 @@
-import fs from 'fs';
-import path from 'path';
-import mime from 'mime-types';
+import fs from 'fs'
+import path from 'path'
 
-const handler = async (req, res) => {
-    if (req.method !== 'GET') return res.status(405).end();
+const UPLOADS_DIR = path.join(process.cwd(), 'tmp')
 
-    const { filename } = req.query;
-    if (!filename) {
-        return res.status(400).json({
-            status: false,
-            message: 'Missing filename',
-        });
+const EXTENSION_MIME = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    webm: 'video/webm',
+    mp3: 'audio/mpeg',
+    wav: 'audio/wav',
+    ogg: 'audio/ogg',
+    pdf: 'application/pdf'
+}
+
+function getMimeType(filename) {
+    const ext = filename.split('.').pop()?.toLowerCase()
+    return EXTENSION_MIME[ext] || 'application/octet-stream'
+}
+
+export async function GET(req) {
+    const { searchParams } = new URL(req.url)
+    const rawFilename = searchParams.get('filename')
+
+    if (!rawFilename) {
+        return Response.json(
+            { success: false, error: 'Missing filename parameter' },
+            { status: 400 }
+        )
     }
 
-    const filePath = path.join(process.cwd(), 'tmp', filename);
+    // Sanitize: strip all directory components so traversal like
+    // ../../etc/passwd is reduced to just 'passwd'
+    const filename = path.basename(rawFilename)
+
+    // Reject filenames with null bytes or that are just dots
+    if (filename === '.' || filename === '..' || filename.includes('\0')) {
+        return Response.json(
+            { success: false, error: 'Invalid filename' },
+            { status: 400 }
+        )
+    }
+
+    const filePath = path.join(UPLOADS_DIR, filename)
+
+    // Double-check the resolved path is still inside UPLOADS_DIR
+    // (defence-in-depth against any edge cases path.basename misses)
+    if (!filePath.startsWith(UPLOADS_DIR + path.sep)) {
+        return Response.json(
+            { success: false, error: 'Access denied' },
+            { status: 403 }
+        )
+    }
 
     try {
-        await fs.promises.access(filePath);
-
-        const mimeType = mime.lookup(filename) || 'application/octet-stream';
-        const stat = await fs.promises.stat(filePath);
-
-        res.writeHead(200, {
-            'Content-Type': mimeType,
-            'Content-Length': stat.size,
-            'Content-Disposition': `inline; filename="${filename}"`,
-        });
-
-        const stream = fs.createReadStream(filePath);
-        stream.pipe(res);
-
-        stream.on('error', (err) => {
-            console.error('Stream error:', err);
-            res.status(500).end();
-        });
-    } catch (error) {
-        console.error('Error accessing file:', error);
-        if (error.code === 'ENOENT') {
-            return res.status(404).json({
-                status: false,
-                message: 'File not found',
-            });
-        }
-        return res.status(500).json({
-            status: false,
-            message: 'Internal server error',
-        });
+        await fs.promises.access(filePath, fs.constants.R_OK)
+    } catch {
+        return Response.json(
+            { success: false, error: 'File not found' },
+            { status: 404 }
+        )
     }
-};
 
-export default handler;
+    let stat
+    try {
+        stat = await fs.promises.stat(filePath)
+    } catch {
+        return Response.json(
+            { success: false, error: 'Could not read file metadata' },
+            { status: 500 }
+        )
+    }
+
+    const mimeType = getMimeType(filename)
+
+    // Stream the file using the Web Streams API (App Router compatible)
+    const nodeStream = fs.createReadStream(filePath)
+
+    const webStream = new ReadableStream({
+        start(controller) {
+            nodeStream.on('data', (chunk) => {
+                controller.enqueue(new Uint8Array(chunk))
+            })
+            nodeStream.on('end', () => {
+                controller.close()
+            })
+            nodeStream.on('error', (err) => {
+                controller.error(err)
+            })
+        },
+        cancel() {
+            nodeStream.destroy()
+        }
+    })
+
+    return new Response(webStream, {
+        status: 200,
+        headers: {
+            'Content-Type': mimeType,
+            'Content-Length': String(stat.size),
+            'Content-Disposition': `inline; filename="${filename}"`,
+            'Cache-Control': 'private, max-age=3600',
+            'X-Content-Type-Options': 'nosniff'
+        }
+    })
+}
