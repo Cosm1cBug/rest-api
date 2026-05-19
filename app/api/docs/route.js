@@ -1,4 +1,4 @@
-impot { failure } from '@/lib/apiResponse'
+import { failure } from '@/lib/apiResponse.js'
 
 export async function GET(req) {
     const adminKey = req.headers.get('x-admin-key')

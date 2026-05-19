@@ -70,7 +70,7 @@ export async function POST(req) {
             method: 'POST',
             status: 200,
             success: true,
-            latency: Date.now() - start,
+            latency: Date.now() - tracker.start,
             ip,
             cacheHit: true
         })
