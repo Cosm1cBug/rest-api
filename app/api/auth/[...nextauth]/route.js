@@ -1,8 +1,8 @@
 import NextAuth from 'next-auth'
+import CredentialsProvider from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
 import User from '@/models/user.js'
 import connectDB from '@/lib/mongodb.js'
-import CredentialsProvider from 'next-auth/providers/credentials';
 
 const handler = NextAuth({
 
@@ -32,9 +32,11 @@ const handler = NextAuth({
 
                 const fakeHash = process.env.FAKE_BCRYPT_HASH
 
-                const user = await User.findOne({
-                    username: credentials.username
-                })
+                if (!fakeHash) {
+                    throw new Error('Missing FAKE_BCRYPT_HASH')
+                }
+
+                const user = await User.findOne({ username: credentials.username })
 
                 const hash = user?.password || fakeHash
 
@@ -44,13 +46,21 @@ const handler = NextAuth({
                 )   
 
                 if (!user || !valid) {
+                    console.warn('[AUTH FAILED]', credentials.username)
                     return null
                 }
+
+                if (user.disabled) {
+                    console.warn('[AUTH BLOCKED]', user.username)
+                    return null
+                }
+
+                console.log('[AUTH SUCCESS]', user.username)
 
                 return {
                     id: user._id.toString(),
                     name: user.username,
-                    role: user.role
+                    role: user.role || 'user'
                 }
             }
         })
@@ -71,20 +81,34 @@ const handler = NextAuth({
 
             if (user) {
                 token.role = user.role
+                token.id = user.id
             }
 
             return token
         },
 
         async session({ session, token }) {
-            session.user.role = token.role
+            if (session.user) {
+                session.user.role = token.role
+                session.user.id = token.id
+            }
+            
             return session
+        },
+
+        async redirect ({ url, baseUrl }) {
+            if (url.startsWith(baseUrl)) {
+                return url
+            }
+            return baseUrl
         }
     },
 
     cookies: {
         sessionToken: {
-            name: '__Secure-next-auth.session-token',
+            name: process.env.NODE_ENV === 'production'
+            ? '__Secure-next-auth.session-token'
+            : 'next-auth.session-token'
             options: {
                 httpOnly: true,
                 sameSite: 'lax',
