@@ -2,7 +2,8 @@
 
 const nextConfig = {
     reactStrictMode: true,
-    transpilePackages: ['next-auth']  
+    poweredByHeader: false,
+    transpilePackages: ['next-auth']
 }
 
 export default nextConfig

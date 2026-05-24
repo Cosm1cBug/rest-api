@@ -3,11 +3,16 @@ import mongoose from 'mongoose'
 const OtpSchema = new mongoose.Schema({
     email: { 
         type: String, 
-        required: true 
+        required: true ,
+        index: true
     },
     code: { 
         type: String, 
         required: true 
+    },
+    attempts: {
+        type: Number,
+        default: 0
     },
     createdAt: { 
         type: Date, 

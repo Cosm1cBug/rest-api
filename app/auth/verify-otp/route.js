@@ -4,31 +4,44 @@ import Otp from '@/models/otp.js'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { registerSchema } from '@/lib/validators/auth.js'
+import { consumeOtpVerifyLimit } from '@/lib/auth/otpRateLimit.js'
+import { requireJson } from '@/lib/auth/requireJson.js'
 
 const BCRYPT_ROUNDS = 12
 
-/**
- * Generates a new API key in the format `keyId.secret`.
- * keyId   - stored plaintext, used for DB lookup
- * secret  - returned once to the user; only its bcrypt hash is stored
- */
+const MAX_OTP_ATTEMPTS = 5
+
+const DUPLICATE_ACCOUNT_ERROR = {
+    success: false,
+    message: 'Could not create account with the provided details. Please try a different username or email.'
+}
+
 async function generateApiKey() {
-    const keyId = crypto.randomBytes(8).toString('hex')       // 16 hex chars
-    const secret = crypto.randomBytes(24).toString('hex')     // 48 hex chars
+    const keyId = crypto.randomBytes(8).toString('hex')      // 16 hex chars
+    const secret = crypto.randomBytes(24).toString('hex')    // 48 hex chars
     const keyHash = await bcrypt.hash(secret, BCRYPT_ROUNDS)
     const apiKey = `${keyId}.${secret}`
     return { keyId, keyHash, apiKey }
 }
 
+function clientIp(req) {
+    const xff = req.headers.get('x-forwarded-for') || ''
+    const first = xff.split(',')[0].trim()
+    if (first) return first
+    return req.headers.get('x-real-ip') || 'unknown'
+}
+
 export async function POST(req) {
     try {
-        const body = await req.json()
+        const body = await req.json().catch(() => ({}))
         const { username, email, password, otp } = body
 
         // --- Input validation via Zod schema ---
         const parsed = registerSchema.safeParse({ username, email, password })
         if (!parsed.success) {
             const message = parsed.error.errors[0]?.message || 'Invalid input.'
+            const ctDenied = requireJson(req)
+            if (ctDenied) return ctDenied
             return Response.json(
                 { success: false, message },
                 { status: 400 }
@@ -51,7 +64,24 @@ export async function POST(req) {
             )
         }
 
-        const normalizedEmail = email.toLowerCase().trim()
+        // parsed.data.email has already been trimmed/lowercased by Zod.
+        const normalizedEmail = parsed.data.email
+
+        // --- Rate limit: per-IP + per-(IP, email) ---
+        // Enforced BEFORE touching the DB so brute-force traffic does not
+        // become a database DoS.
+        const ip = clientIp(req)
+        const limit = await consumeOtpVerifyLimit(ip, normalizedEmail)
+        if (!limit.success) {
+            const retryAfter = Math.ceil((limit.msBeforeNext ?? 60_000) / 1000)
+            return Response.json(
+                { success: false, message: 'Too many verification attempts. Please wait and try again.' },
+                {
+                    status: 429,
+                    headers: { 'Retry-After': String(retryAfter) }
+                }
+            )
+        }
 
         await connectDB()
 
@@ -74,36 +104,57 @@ export async function POST(req) {
             )
         }
 
+        // --- Per-OTP attempt cap ---
+        // Burn the record the moment it has accumulated too many failures,
+        // BEFORE comparing the supplied code. This guarantees an attacker
+        // gets at most MAX_OTP_ATTEMPTS guesses regardless of concurrency.
+        if ((otpRecord.attempts || 0) >= MAX_OTP_ATTEMPTS) {
+            await Otp.deleteOne({ _id: otpRecord._id })
+            return Response.json(
+                { success: false, message: 'Too many failed attempts. Please request a new OTP.' },
+                { status: 429 }
+            )
+        }
+
         // --- Constant-time code comparison to prevent timing attacks ---
         const expected = Buffer.from(otpRecord.code)
         const received = Buffer.from(otpCode)
         const codesMatch = expected.length === received.length && crypto.timingSafeEqual(expected, received)
 
         if (!codesMatch) {
+            // Atomically increment the attempt counter. If this push tips us
+            // past the threshold, destroy the record so a concurrent verifier
+            // cannot squeeze in one more guess.
+            const updated = await Otp.findOneAndUpdate(
+                { _id: otpRecord._id },
+                { $inc: { attempts: 1 } },
+                { new: true }
+            )
+
+            if (updated && updated.attempts >= MAX_OTP_ATTEMPTS) {
+                await Otp.deleteOne({ _id: updated._id })
+            }
+
             return Response.json(
                 { success: false, message: 'Invalid OTP.' },
                 { status: 400 }
             )
         }
 
-        // --- Check for duplicate username / email before creating ---
+        // --- Duplicate check (generic error — see Fix #8) ---
         const [emailTaken, usernameTaken] = await Promise.all([
             User.exists({ email: normalizedEmail }),
             User.exists({ username: parsed.data.username })
         ])
 
-        if (emailTaken) {
-            return Response.json(
-                { success: false, message: 'This email is already registered.' },
-                { status: 409 }
+        if (emailTaken || usernameTaken) {
+            console.info(
+                '[verify-otp] account creation suppressed: duplicate %s',
+                emailTaken && usernameTaken
+                    ? 'email+username'
+                    : (emailTaken ? 'email' : 'username')
             )
-        }
-
-        if (usernameTaken) {
-            return Response.json(
-                { success: false, message: 'This username is already taken.' },
-                { status: 409 }
-            )
+            return Response.json(DUPLICATE_ACCOUNT_ERROR, { status: 409 })
         }
 
         // --- Hash password and generate API key ---
@@ -112,24 +163,34 @@ export async function POST(req) {
             generateApiKey()
         ])
 
-        // --- Create user ---
-        await User.create({
-            username: parsed.data.username,
-            email: normalizedEmail,
-            password: passwordHash,
-            keyId,
-            keyHash,
-            apiKey,
-            status: 'basic'
-        })
+        // --- Create user (race-safe via unique-index catch) ---
+        try {
+            await User.create({
+                username: parsed.data.username,
+                email: normalizedEmail,
+                password: passwordHash,
+                keyId,
+                keyHash,
+                role: 'basic'
+            })
+        } catch (err) {
+            if (err && err.code === 11000) {
+                console.info('[verify-otp] account creation suppressed: duplicate (race)')
+                return Response.json(DUPLICATE_ACCOUNT_ERROR, { status: 409 })
+            }
+            throw err
+        }
 
         // --- Consume OTP so it cannot be reused ---
         await Otp.deleteOne({ _id: otpRecord._id })
 
+        // --- Return the raw apiKey to the user ONCE ---
         return Response.json(
             {
                 success: true,
-                message: 'Account created successfully. You can now sign in.'
+                message: 'Account created successfully. Save your API key now — it will not be shown again.',
+                apiKey,
+                apiKeyId: keyId
             },
             { status: 201 }
         )

@@ -1,11 +1,6 @@
 import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
-    apiKey: {
-        type: String,
-        unique: true,
-        index: true
-    },
     keyId: {
         type: String,
         unique: true,
@@ -34,13 +29,19 @@ const UserSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    status: { 
+    role: {
         type: String,
         enum: ['basic', 'standard', 'premium', 'admin'],
-        default: "basic" 
+        default: 'basic',
+        index: true
     },
     endDate: {
         type: Date
+    },
+    disabled: {
+        type: Boolean,
+        default: false,
+        index: true
     },
     image: { 
         type: String, 

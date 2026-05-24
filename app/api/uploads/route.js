@@ -1,7 +1,9 @@
+import { createReadStream } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
+import { verifyApiKey } from '@/lib/middleware/apiKey.js'
 
-const UPLOADS_DIR = path.join(process.cwd(), 'tmp')
+const UPLOADS_DIR = path.resolve(process.cwd(), 'tmp')
 
 const EXTENSION_MIME = {
     jpg: 'image/jpeg',
@@ -17,68 +19,82 @@ const EXTENSION_MIME = {
     pdf: 'application/pdf'
 }
 
+const SAFE_NAME = /^[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}$/
+
 function getMimeType(filename) {
     const ext = filename.split('.').pop()?.toLowerCase()
     return EXTENSION_MIME[ext] || 'application/octet-stream'
 }
 
+function jsonError(message, status) {
+    return Response.json({ success: false, error: message }, { status })
+}
+
 export async function GET(req) {
+
+    let user
+    try {
+        user = await verifyApiKey(req)
+    } catch {
+        return jsonError('Unauthorized', 401)
+    }
+
+    if (!user) {
+        return jsonError('Unauthorized', 401)
+    }
+
+    // --- Input parsing ---
     const { searchParams } = new URL(req.url)
     const rawFilename = searchParams.get('filename')
 
-    if (!rawFilename) {
-        return Response.json(
-            { success: false, error: 'Missing filename parameter' },
-            { status: 400 }
-        )
+    if (!rawFilename || typeof rawFilename !== 'string') {
+        return jsonError('Missing filename parameter', 400)
     }
 
-    // Sanitize: strip all directory components so traversal like
-    // ../../etc/passwd is reduced to just 'passwd'
+    if (rawFilename.length > 128) {
+        return jsonError('Invalid filename', 400)
+    }
+
+    // Reject NUL bytes outright (would truncate the path at the C layer).
+    if (rawFilename.includes('\0')) {
+        return jsonError('Invalid filename', 400)
+    }
+
     const filename = path.basename(rawFilename)
 
-    // Reject filenames with null bytes or that are just dots
-    if (filename === '.' || filename === '..' || filename.includes('\0')) {
-        return Response.json(
-            { success: false, error: 'Invalid filename' },
-            { status: 400 }
-        )
+    // Reject dot-only filenames (basename('..') === '..').
+    if (filename === '' || filename === '.' || filename === '..') {
+        return jsonError('Invalid filename', 400)
     }
 
-    const filePath = path.join(UPLOADS_DIR, filename)
-
-    // Double-check the resolved path is still inside UPLOADS_DIR
-    // (defence-in-depth against any edge cases path.basename misses)
-    if (!filePath.startsWith(UPLOADS_DIR + path.sep)) {
-        return Response.json(
-            { success: false, error: 'Access denied' },
-            { status: 403 }
-        )
+    if (!SAFE_NAME.test(filename)) {
+        return jsonError('Invalid filename', 400)
     }
 
-    try {
-        await fs.access(filePath, fs.constants.R_OK)
-    } catch {
-        return Response.json(
-            { success: false, error: 'File not found' },
-            { status: 404 }
-        )
+    const filePath = path.resolve(UPLOADS_DIR, filename)
+
+    if (
+        filePath !== path.join(UPLOADS_DIR, filename) ||
+        !filePath.startsWith(UPLOADS_DIR + path.sep)
+    ) {
+        return jsonError('Access denied', 403)
     }
 
+    // --- Stat / readability check ---
     let stat
     try {
         stat = await fs.stat(filePath)
     } catch {
-        return Response.json(
-            { success: false, error: 'Could not read file metadata' },
-            { status: 500 }
-        )
+        return jsonError('File not found', 404)
     }
 
-    const mimeType = getMimeType(filename)
+    if (!stat.isFile()) {
+        // Reject directories, symlinks-to-directories, sockets, etc.
+        return jsonError('File not found', 404)
+    }
 
-    // Stream the file using the Web Streams API (App Router compatible)
-    const nodeStream = fs.createReadStream(filePath)
+    // --- Stream the file ---
+    const nodeStream = createReadStream(filePath)
 
     const webStream = new ReadableStream({
         start(controller) {
@@ -97,13 +113,15 @@ export async function GET(req) {
         }
     })
 
+    const mimeType = getMimeType(filename)
+
     return new Response(webStream, {
         status: 200,
         headers: {
             'Content-Type': mimeType,
             'Content-Length': String(stat.size),
             'Content-Disposition': `inline; filename="${filename}"`,
-            'Cache-Control': 'private, max-age=3600',
+            'Cache-Control': 'private, no-store',
             'X-Content-Type-Options': 'nosniff'
         }
     })

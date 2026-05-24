@@ -4,11 +4,19 @@ import Otp from '@/models/otp.js'
 import { redis } from '@/lib/redis.js'
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
-
+import { jitterDelay } from '@/lib/auth/timing.js'
+import { requireJson } from '@/lib/auth/requireJson.js'
 // Rate limit: max 3 OTP sends per email per 10 minutes
 const OTP_RATE_LIMIT = 3
 const OTP_RATE_WINDOW = 10 * 60 // seconds
 const OTP_TTL = 5 * 60 // 5 minutes — matches OtpSchema `expires: 300`
+
+// A single message we return for ALL non-error outcomes so attackers cannot
+// distinguish "email free → OTP sent" from "email already registered → silently dropped".
+const GENERIC_OK = {
+    success: true,
+    message: 'If this email is eligible, an OTP has been sent. Please check your inbox.'
+}
 
 function generateOtp() {
     // Cryptographically random 6-digit code, zero-padded
@@ -46,10 +54,15 @@ async function sendOtpEmail(to, code) {
 
 export async function POST(req) {
     try {
-        const body = await req.json()
+        const ctDenied = requireJson(req)
+        if (ctDenied) return ctDenied
+        const body = await req.json().catch(() => ({}))
         const { email } = body
 
         // --- Input validation ---
+        // We DO return a distinct 400 for missing/malformed email because
+        // that is a client-side bug, not user-data enumeration. The check
+        // also rejects non-string inputs (NoSQL injection defence).
         if (!email || typeof email !== 'string') {
             return Response.json(
                 { success: false, message: 'Email is required.' },
@@ -59,34 +72,28 @@ export async function POST(req) {
 
         const normalizedEmail = email.toLowerCase().trim()
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-        if (!emailRegex.test(normalizedEmail)) {
+        if (normalizedEmail.length > 254 || !emailRegex.test(normalizedEmail)) {
             return Response.json(
                 { success: false, message: 'Invalid email address.' },
                 { status: 400 }
             )
         }
 
-        await connectDB()
-
-        // --- Check email not already registered ---
-        const existing = await User.findOne({ email: normalizedEmail })
-        if (existing) {
-            return Response.json(
-                { success: false, message: 'This email is already registered.' },
-                { status: 409 }
-            )
-        }
-
         // --- Rate limiting: max OTP_RATE_LIMIT sends per email per window ---
+        // Run this BEFORE the existence check so the limiter still applies
+        // to enumeration probes (otherwise an attacker could bypass it by
+        // only ever hitting already-registered emails).
         const rateLimitKey = `otp-rate:${normalizedEmail}`
         const sends = await redis.incr(rateLimitKey)
 
         if (sends === 1) {
-            // First send — set the window expiry
             await redis.expire(rateLimitKey, OTP_RATE_WINDOW)
         }
 
         if (sends > OTP_RATE_LIMIT) {
+            // 429 is unavoidable here — silently swallowing repeated requests
+            // would expose the service to floods. We still do not differentiate
+            // by whether the email exists.
             return Response.json(
                 { success: false, message: 'Too many OTP requests. Please wait 10 minutes before trying again.' },
                 { status: 429 }
@@ -102,10 +109,34 @@ export async function POST(req) {
             )
         }
 
-        // --- Delete any existing OTP for this email (prevent stale codes) ---
+        await connectDB()
+
+        // --- Existence check, performed WITHOUT branching the response ---
+        // If the email is already registered we deliberately do nothing:
+        //   - no OTP is created
+        //   - no email is sent
+        //   - the response is identical to the "real" path
+        // The legitimate owner of an existing account will not see an OTP
+        // in their inbox; an attacker probing for valid accounts will see
+        // exactly the same JSON, status code, and (approximately) timing.
+        const existing = await User.exists({ email: normalizedEmail })
+
+        if (existing) {
+            // Audit log — useful for spotting brute-force-style enumeration
+            // attempts internally, but NEVER exposed on the wire.
+            console.info('[send-otp] suppressed: address already registered')
+
+            // Match the wall-clock duration of the real send path so the
+            // response time is not a side channel.
+            await jitterDelay()
+
+            return Response.json(GENERIC_OK, { status: 200 })
+        }
+
+        // --- Real send path ---
+        // Delete any existing OTP for this email (prevent stale codes).
         await Otp.deleteMany({ email: normalizedEmail })
 
-        // --- Generate and store OTP ---
         const code = generateOtp()
         const expiresAt = new Date(Date.now() + OTP_TTL * 1000)
 
@@ -115,13 +146,9 @@ export async function POST(req) {
             expiresAt
         })
 
-        // --- Send email ---
         await sendOtpEmail(normalizedEmail, code)
 
-        return Response.json(
-            { success: true, message: 'OTP sent to your email. Please check your inbox.' },
-            { status: 200 }
-        )
+        return Response.json(GENERIC_OK, { status: 200 })
 
     } catch (err) {
         console.error('[send-otp] Error:', err)

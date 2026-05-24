@@ -16,6 +16,10 @@ export default function Register() {
     const [showPassword, setShowPassword] = useState(false);
     const [form, setForm] = useState({ username: '', email: '', password: '', otp: '' });
     const [showAlert, setShowAlert] = useState({ message: "", visible: false });
+    const [apiKey, setApiKey] = useState('');
+    const [apiKeyId, setApiKeyId] = useState('');
+    const [acknowledgedSaved, setAcknowledgedSaved] = useState(false);
+    const [copyLabel, setCopyLabel] = useState('Copy');
 
     const router = useRouter();
     const { status } = useSession();
@@ -56,7 +60,7 @@ export default function Register() {
     const handleVerify = async (e) => {
         e.preventDefault();
         if (form.otp.length !== 6 || isNaN(form.otp)) {
-            return alert('OTP harus berupa angka 6 digit', true);
+            return alert('OTP must be a 6-digit number.', true);
         }
 
         setLoading(true);
@@ -72,13 +76,39 @@ export default function Register() {
         const data = await res.json();
 
         if (res.ok) {
+            // Clear cached form so the password is not left in sessionStorage.
             sessionStorage.removeItem('registerForm');
-            alert(data.message, true);
-            await delay(2000);
-            router.push('/auth/login');
+
+            if (data.apiKey) {
+                setApiKey(data.apiKey);
+                setApiKeyId(data.apiKeyId || '');
+                setStep(3);
+            } else {
+                // Defensive fallback if the server response shape changes.
+                alert(data.message || 'Account created.', true);
+                await delay(2000);
+                router.push('/auth/login');
+            }
         } else {
             alert(data.message, true);
         }
+    };
+
+    const handleCopyApiKey = async () => {
+        try {
+            await navigator.clipboard.writeText(apiKey);
+            setCopyLabel('Copied!');
+            setTimeout(() => setCopyLabel('Copy'), 2000);
+        } catch {
+            alert('Could not copy. Please select and copy manually.', true);
+        }
+    };
+
+    const handleProceedToLogin = () => {
+        // Wipe the key from memory before navigating away.
+        setApiKey('');
+        setApiKeyId('');
+        router.push('/auth/login');
     };
 
     const handleResend = async () => {
@@ -122,16 +152,17 @@ export default function Register() {
                 setForm(parsed);
                 setStep(2);
             } else {
-                sessionStorage.removeItem('registerForm'); // hapus jika expired
+                sessionStorage.removeItem('registerForm');
             }
         }
     }, []);
 
     useEffect(() => {
-        if (status === "authenticated") {
+        // Don't auto-redirect while the user is being shown their one-time key.
+        if (status === "authenticated" && step !== 3) {
             router.push("/dashboard");
         }
-    }, [status, router]);
+    }, [status, router, step]);
 
     useEffect(() => {
         let interval;
@@ -145,7 +176,7 @@ export default function Register() {
 
     return (
         <div>
-            {step === 1 ? (
+            {step === 1 && (
                 <div>
                     <Navbar />
                     <div className="flex flex-col items-center justify-center h-screen">
@@ -191,9 +222,9 @@ export default function Register() {
                                             onChange={(e) => setForm({ ...form, password: e.target.value })}
                                             required
                                         />
-                                        <button 
-                                            type="button" 
-                                            className="absolute mt-2 right-2 text-sm text-gray-400 hover:text-gray-200" 
+                                        <button
+                                            type="button"
+                                            className="absolute mt-2 right-2 text-sm text-gray-400 hover:text-gray-200"
                                             onClick={() => setShowPassword(!showPassword)}
                                         >
                                             {showPassword ? 'Hide' : 'Show'}
@@ -208,7 +239,9 @@ export default function Register() {
                         </div>
                     </div>
                 </div>
-            ) : (
+            )}
+
+            {step === 2 && (
                 <div>
                     <div className="flex flex-col items-center justify-center h-screen">
                         <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg m-5 md:m-10">
@@ -218,8 +251,8 @@ export default function Register() {
                             </div>
                             <div className="mb-4 flex flex-col">
                                 <p className="text-gray-400 mb-2">We have sent an OTP to <span className="text-[#483AA0]">{form.email}</span>. Please enter the OTP below to verify your email.</p>
-                                <button 
-                                    onClick={() => handleChangeEmail()} 
+                                <button
+                                    onClick={() => handleChangeEmail()}
                                     className="text-[#483AA0] hover:underline mb-2 text-left"
                                 >
                                     Change Email?
@@ -234,17 +267,17 @@ export default function Register() {
                                         required
                                     />
                                     <div className='flex flex-col'>
-                                        <button 
+                                        <button
                                             type="submit"
-                                            disabled={loading} 
+                                            disabled={loading}
                                             className="mt-4 bg-[#483AA0] hover:bg-[#372a7a] hover:scale-105 active:scale-95 px-4 py-2 rounded-lg shadow-md transition duration-300 font-bold"
                                         >
                                             {loading ? 'Loading...' : 'Verify OTP'}
                                         </button>
-                                        <button 
+                                        <button
                                             type='button'
-                                            onClick={handleResend} 
-                                            className={`mt-2 bg-transparent ${resendCooldown > 0 ? 'text-gray-500' : ''} hover:underline`} 
+                                            onClick={handleResend}
+                                            className={`mt-2 bg-transparent ${resendCooldown > 0 ? 'text-gray-500' : ''} hover:underline`}
                                             disabled={loadingResend || resendCooldown > 0}
                                         >
                                             {loadingResend ? 'Loading...' : resendCooldown === 0 ? 'Resend OTP' : `Resend OTP in ${resendCooldown} seconds`}
@@ -256,6 +289,71 @@ export default function Register() {
                     </div>
                 </div>
             )}
+
+            {step === 3 && (
+                <div>
+                    <div className="flex flex-col items-center justify-center min-h-screen">
+                        <div className="bg-[#1f1f2e] rounded-lg p-5 shadow-lg m-5 md:m-10 w-full max-w-xl">
+                            <div className="mb-4">
+                                <h1 className="text-xl md:text-2xl font-bold">Save Your API Key</h1>
+                                <p className="text-gray-400 mt-1">
+                                    This is the <strong>only time</strong> we will show you this key.
+                                    Store it somewhere safe (a password manager is ideal).
+                                    If you lose it, you must generate a new one.
+                                </p>
+                            </div>
+
+                            {apiKeyId && (
+                                <div className="mb-3">
+                                    <label className="block text-sm text-gray-400 mb-1">Key ID</label>
+                                    <code className="block w-full p-2 bg-[#2c2c3a] rounded-lg break-all text-sm">
+                                        {apiKeyId}
+                                    </code>
+                                </div>
+                            )}
+
+                            <div className="mb-4">
+                                <label className="block text-sm text-gray-400 mb-1">API Key</label>
+                                <div className="flex items-center gap-2">
+                                    <code className="block flex-1 p-2 bg-[#2c2c3a] rounded-lg break-all text-sm">
+                                        {apiKey}
+                                    </code>
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyApiKey}
+                                        className="px-3 py-2 bg-[#483AA0] hover:bg-[#372a7a] rounded-lg text-sm font-bold"
+                                    >
+                                        {copyLabel}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <label className="flex items-start gap-2 mb-4 text-sm text-gray-300 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={acknowledgedSaved}
+                                    onChange={(e) => setAcknowledgedSaved(e.target.checked)}
+                                    className="mt-1"
+                                />
+                                <span>
+                                    I have saved my API key. I understand it will not be shown again
+                                    and that the server has no way to recover it.
+                                </span>
+                            </label>
+
+                            <button
+                                type="button"
+                                disabled={!acknowledgedSaved}
+                                onClick={handleProceedToLogin}
+                                className="w-full bg-[#483AA0] hover:bg-[#372a7a] disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-lg shadow-md transition duration-300 font-bold"
+                            >
+                                Continue to Sign In
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <Alert message={showAlert.message} visible={showAlert.visible} onClose={() => setShowAlert({ message: "", visible: false })} />
         </div>
     );

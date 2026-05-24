@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-// Path prefixes that require an authenticated admin.
 const ADMIN_PREFIXES = [
     '/api/dashboard',
     '/dashboard',
     '/admin'
 ]
 
-// Public routes inside otherwise-protected prefixes (none today, but kept for future use).
 const PUBLIC_EXCEPTIONS = []
 
 function isAdminPath(pathname) {
@@ -18,39 +16,39 @@ function isAdminPath(pathname) {
     return ADMIN_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
 }
 
-export function middleware(req) {
+const CSP_DIRECTIVES = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    "connect-src 'self' ws: wss:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'"
+].join('; ')
+
+export async function middleware(req) {
 
     const response = NextResponse.next()
 
-    response.headers.set(
-        'X-Frame-Options',
-        'DENY'
-    )
-
-    response.headers.set(
-        'Content-Security-Policy',
-        "default-src 'self'"
-    )
-
-    response.headers.set(
-        'X-Content-Type-Options',
-        'nosniff'
-    )
-
-    response.headers.set(
-        'Referrer-Policy',
-        'strict-origin-when-cross-origin'
-    )
-
+    // --- Security headers ---
+    response.headers.set('X-Frame-Options', 'DENY')
+    response.headers.set('X-Content-Type-Options', 'nosniff')
+    response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+    response.headers.set('Content-Security-Policy', CSP_DIRECTIVES)
     response.headers.set(
         'Permissions-Policy',
-        'camera=(), microphone=()'
+        'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()'
     )
-
     response.headers.set(
         'Strict-Transport-Security',
-        'max-age=31536000; includeSubDomains'
+        'max-age=63072000; includeSubDomains; preload'
     )
+    response.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
+    response.headers.set('Cross-Origin-Resource-Policy', 'same-origin')
+    response.headers.set('X-DNS-Prefetch-Control', 'off')
 
     // --- Admin gate ---
     const pathname = req.nextUrl.pathname
@@ -58,7 +56,6 @@ export function middleware(req) {
     if (isAdminPath(pathname)) {
 
         if (!process.env.NEXTAUTH_SECRET) {
-            // Fail closed if the server is misconfigured.
             return new NextResponse(
                 JSON.stringify({ success: false, error: 'Server misconfigured' }),
                 { status: 500, headers: { 'Content-Type': 'application/json' } }
@@ -73,7 +70,6 @@ export function middleware(req) {
         }
 
         if (!token) {
-            // For HTML page navigations, redirect to login; for API calls, return JSON 401.
             if (pathname.startsWith('/api/')) {
                 return new NextResponse(
                     JSON.stringify({ success: false, error: 'Unauthorized' }),
@@ -100,7 +96,6 @@ export function middleware(req) {
 }
 
 export const config = {
-
     matcher: [
         '/api/:path*',
         '/dashboard/:path*',
