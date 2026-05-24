@@ -28,7 +28,6 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.6.1",
     "ipaddr.js": "^2.2.0",
-    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.15.1",
     "next": "^15.3.2",
     "next-auth": "^4.24.11",

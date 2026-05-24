@@ -6,6 +6,7 @@ import crypto from 'crypto'
 import { registerSchema } from '@/lib/validators/auth.js'
 import { consumeOtpVerifyLimit } from '@/lib/auth/otpRateLimit.js'
 import { requireJson } from '@/lib/auth/requireJson.js'
+import { clientIp } from '@/lib/clientIp.js'
 
 const BCRYPT_ROUNDS = 12
 
@@ -38,6 +39,7 @@ export async function POST(req) {
 
         // --- Input validation via Zod schema ---
         const parsed = registerSchema.safeParse({ username, email, password })
+        
         if (!parsed.success) {
             const message = parsed.error.errors[0]?.message || 'Invalid input.'
             const ctDenied = requireJson(req)

@@ -1,6 +1,5 @@
 import { Worker, scraperQueue } from '@/lib/bullmq.js'
 import { redis } from '@/lib/redis.js'
-import { youtube } from '@/lib/scrapers/youtube.js'
 import { updateQueueStats } from '@/lib/queueTelemetry.js'
 import { trackWorkerCompleted, trackWorkerFailed } from '@/lib/telemetry.js'
 
