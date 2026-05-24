@@ -34,16 +34,18 @@ function clientIp(req) {
 
 export async function POST(req) {
     try {
+        const ctDenied = requireJson(req)
+        if (ctDenied) return ctDenied
+        
         const body = await req.json().catch(() => ({}))
         const { username, email, password, otp } = body
 
         // --- Input validation via Zod schema ---
         const parsed = registerSchema.safeParse({ username, email, password })
-        
+
         if (!parsed.success) {
             const message = parsed.error.errors[0]?.message || 'Invalid input.'
-            const ctDenied = requireJson(req)
-            if (ctDenied) return ctDenied
+
             return Response.json(
                 { success: false, message },
                 { status: 400 }
