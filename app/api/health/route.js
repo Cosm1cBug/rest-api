@@ -5,10 +5,11 @@ export async function GET() {
 
     let mongo = 'disconnected'
     let redisStatus = 'disconnected'
+
     try {
         mongo = mongoose.connection.readyState === 1
-                ? 'connected'
-                : 'disconnected'
+            ? 'connected'
+            : 'disconnected'
 
     } catch {}
 
@@ -19,13 +20,16 @@ export async function GET() {
 
     } catch {}
 
+    const healthy = mongo === 'connected' && redisStatus === 'connected'
+
     return Response.json({
 
-        status: 'ok',
-        uptime: process.uptime(),
-        memory: process.memoryUsage(),
+        status: healthy ? 'ok' : 'degraded',
         mongodb: mongo,
         redis: redisStatus,
         timestamp: Date.now()
+    },
+    {
+        status: healthy ? 200 : 503
     })
 }

@@ -1,16 +1,14 @@
 import ApiLog from '@/models/apiLog.js'
 import connectDB from '@/lib/mongodb.js'
 import { dashboardRateLimit } from '@/lib/middleware/adminRateLimit'
+import { requireAdmin } from '@/lib/auth/requireAdmin.js' 
 
 export async function GET(req) {
 
-    await connectDB()
+    const denied = await requireAdmin(req)
+    if (denied) return denied
 
-    const now = new Date()
-
-    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-
-    const ip = req.headers.get('x-forwarded-for') || 'unknown'
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || 'unknown'
 
     const { success } = await dashboardRateLimit.limit(ip)
 
@@ -22,6 +20,12 @@ export async function GET(req) {
             status: 429
         })
     }
+
+    await connectDB()
+
+    const now = new Date()
+
+    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000)
 
     const [
         hourlyHits,
