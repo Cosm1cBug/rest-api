@@ -54,6 +54,14 @@ const UserSchema = new mongoose.Schema({
     request_all: { 
         type: Number, 
         default: 0 
+    },
+    failedLoginAttempts: {
+        type: Number,
+        default: 0
+    },
+    lockUntil: {
+        type: Date,
+        default: null
     }
 },
 {
