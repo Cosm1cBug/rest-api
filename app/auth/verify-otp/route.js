@@ -25,18 +25,11 @@ async function generateApiKey() {
     return { keyId, keyHash, apiKey }
 }
 
-function clientIp(req) {
-    const xff = req.headers.get('x-forwarded-for') || ''
-    const first = xff.split(',')[0].trim()
-    if (first) return first
-    return req.headers.get('x-real-ip') || 'unknown'
-}
-
 export async function POST(req) {
     try {
         const ctDenied = requireJson(req)
         if (ctDenied) return ctDenied
-        
+
         const body = await req.json().catch(() => ({}))
         const { username, email, password, otp } = body
 

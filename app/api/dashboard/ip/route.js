@@ -7,8 +7,7 @@ export async function GET(req) {
     const denied = await requireAdmin(req)
     if (denied) return denied
 
-    return NextResponse.json({
+    const topIPs = await getTopIPs()
 
-        topIPs: getTopIPs()
-    })
+    return NextResponse.json({ topIPs })
 }
