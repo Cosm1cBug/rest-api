@@ -1,5 +1,6 @@
 import connectDB from '@/lib/mongodb.js'
 import User from '@/models/user.js'
+import ApiKey from '@/models/apiKey.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
 
 export async function GET(req) {
@@ -9,11 +10,12 @@ export async function GET(req) {
 
     await connectDB()
 
-    // Explicit field projection — safer than relying on toJSON transforms
-    // because new sensitive fields added later would otherwise leak by default.
-    const user = await User.findById(guard.token.id)
-        .select('username email role status image keyId disabled endDate request_today request_all createdAt')
-        .lean()
+    const [user, activeKeyCount] = await Promise.all([
+        User.findById(guard.token.id)
+            .select('username email role status image disabled endDate request_today request_all createdAt')
+            .lean(),
+        ApiKey.countDocuments({ userId: guard.token.id, revoked: false })
+    ])
 
     if (!user) {
         return Response.json(
@@ -38,18 +40,13 @@ export async function GET(req) {
                 email: user.email,
                 role: user.role || user.status || 'basic',
                 image: user.image,
-                keyId: user.keyId || null,           // safe to show — keyId is a lookup handle, not a credential
                 endDate: user.endDate || null,
                 requestToday: user.request_today || 0,
                 requestAll: user.request_all || 0,
-                createdAt: user.createdAt
+                createdAt: user.createdAt,
+                apiKeysActive: activeKeyCount
             }
         },
-        {
-            headers: {
-                // Never let a shared cache hold an authenticated response.
-                'Cache-Control': 'private, no-store'
-            }
-        }
+        { headers: { 'Cache-Control': 'private, no-store' } }
     )
 }
