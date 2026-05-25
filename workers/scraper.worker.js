@@ -1,5 +1,5 @@
 import { Worker, scraperQueue } from '@/lib/bullmq.js'
-import { redis } from '@/lib/redis.js'
+import { bullmqRedis } from '@/lib/redis.js'
 import { updateQueueStats } from '@/lib/queueTelemetry.js'
 import { trackWorkerCompleted, trackWorkerFailed } from '@/lib/telemetry.js'
 
@@ -32,7 +32,7 @@ const worker = new Worker('scraper-queue', async job => {
 
 },
 {
-    connection: redis,
+    connection: bullmqRedis,
     concurrency: 5,
     removeOnComplete: true,
     removeOnFail: 5000

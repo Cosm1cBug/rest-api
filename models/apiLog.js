@@ -50,12 +50,10 @@ const apiLogSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now,
-        expires: '90d',
-        index: true
+        expires: '90d'
     }
 })
 
-apiLogSchema.index({ createdAt: 1 })
 apiLogSchema.index({ endpoint: 1, createdAt: 1 })
 apiLogSchema.index({ userId: 1, createdAt: 1 })
 
