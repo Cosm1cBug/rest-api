@@ -2,6 +2,7 @@ import connectDB from '@/lib/mongodb.js'
 import User from '@/models/user.js'
 import ApiKey from '@/models/apiKey.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
+import { readUsage, dailyQuotaFor } from '@/lib/usage.js'
 
 export async function GET(req) {
 
@@ -12,7 +13,7 @@ export async function GET(req) {
 
     const [user, activeKeyCount] = await Promise.all([
         User.findById(guard.token.id)
-            .select('username email role status image disabled endDate request_today request_all createdAt')
+            .select('username email role status image disabled endDate request_today request_today_date request_all createdAt')
             .lean(),
         ApiKey.countDocuments({ userId: guard.token.id, revoked: false })
     ])
@@ -31,6 +32,8 @@ export async function GET(req) {
         )
     }
 
+    const { requestToday, requestAll } = readUsage(user)
+
     return Response.json(
         {
             success: true,
@@ -41,8 +44,9 @@ export async function GET(req) {
                 role: user.role || user.status || 'basic',
                 image: user.image,
                 endDate: user.endDate || null,
-                requestToday: user.request_today || 0,
-                requestAll: user.request_all || 0,
+                requestToday,
+                requestAll,
+                requestQuotaDaily: dailyQuotaFor(user.role || user.status || 'basic'),
                 createdAt: user.createdAt,
                 apiKeysActive: activeKeyCount
             }
