@@ -1,14 +1,24 @@
-import path from 'path'
-import { fileURLToPath } from 'url'
-import { FlatCompat } from "@eslint/eslintrc"
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { FlatCompat } from '@eslint/eslintrc'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = path.dirname(__filename)
 
 const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+    baseDirectory: __dirname
+})
 
-const eslintConfig = [...compat.extends("next/core-web-vitals")];
-
-export default eslintConfig;
+export default [
+    ...compat.extends('next/core-web-vitals'),
+    {
+        // Don't lint generated / vendored output.
+        ignores: [
+            'node_modules/**',
+            '.next/**',
+            'out/**',
+            'coverage/**',
+            'public/**'
+        ]
+    }
+]

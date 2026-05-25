@@ -1,7 +1,7 @@
 import { createReadStream } from 'fs'
 import fs from 'fs/promises'
 import path from 'path'
-import { verifyApiKey } from '@/lib/middleware/apiKey.js'
+import { verifyApiKey } from '@/lib/middleware/verifyApiKey.js'
 
 const UPLOADS_DIR = path.resolve(process.cwd(), 'tmp')
 

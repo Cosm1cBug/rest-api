@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "worker": "node workers/scraper.worker.js",
     "dashboard": "next dev",
     "kill:dev": "fuser -k 3000/tcp || true",

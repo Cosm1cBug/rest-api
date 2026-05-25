@@ -2,7 +2,7 @@
 import Navbar from "@/components/navbar.jsx";
 import Alert from "@/components/alert.jsx";
 import { useState, useEffect } from "react";
-import { useUser } from "@/context/userContext.jsx";
+import { useUser } from "@/contexts/userContext.jsx";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
