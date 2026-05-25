@@ -4,12 +4,20 @@ import User from '@/models/user.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
 import { requireJson } from '@/lib/auth/requireJson.js'
 import { issueApiKey } from '@/lib/auth/apiKeys.js'
+import { VALID_SCOPES, normaliseScopes } from '@/lib/auth/apiKeyScopes.js'
 import { z } from 'zod'
 
-const MAX_KEYS_PER_USER = 10 
+const MAX_KEYS_PER_USER = 10
+
+// Allow up to 1 year of validity. Longer keys are an anti-pattern;
+// users should rotate them.
+const MAX_EXPIRY_DAYS = 365
 
 const createSchema = z.object({
-    label: z.string().trim().max(64).optional()
+    label:     z.string().trim().max(64).optional(),
+    scopes:    z.array(z.string().max(32)).max(10).optional(),
+    // Either a future ISO datetime, or null/omitted for never-expires.
+    expiresAt: z.union([z.string().datetime(), z.null()]).optional()
 }).strict()
 
 // ---------------------------------------------------------------------- GET
@@ -20,15 +28,19 @@ export async function GET(req) {
     await connectDB()
 
     const keys = await ApiKey.find({ userId: guard.token.id })
-        .select('keyId label createdAt lastUsedAt revoked revokedAt')
+        .select('keyId label scopes expiresAt createdAt lastUsedAt revoked revokedAt')
         .sort({ createdAt: -1 })
         .lean()
 
+    // Legacy key carried inline on the User document — surface it so
+    // pre-Stage-3 users can still see and revoke it.
     const user = await User.findById(guard.token.id).select('keyId').lean()
     const synthetic = (user?.keyId && !keys.find(k => k.keyId === user.keyId))
         ? [{
             keyId: user.keyId,
             label: '(legacy)',
+            scopes: [],
+            expiresAt: null,
             createdAt: null,
             lastUsedAt: null,
             revoked: false,
@@ -41,14 +53,17 @@ export async function GET(req) {
         {
             success: true,
             keys: [...keys, ...synthetic].map(k => ({
-                keyId: k.keyId,
-                label: k.label || '',
-                createdAt: k.createdAt,
+                keyId:      k.keyId,
+                label:      k.label || '',
+                scopes:     k.scopes || [],
+                expiresAt:  k.expiresAt || null,
+                createdAt:  k.createdAt,
                 lastUsedAt: k.lastUsedAt,
-                revoked: k.revoked,
-                revokedAt: k.revokedAt,
-                legacy: !!k.legacy
-            }))
+                revoked:    k.revoked,
+                revokedAt:  k.revokedAt,
+                legacy:     !!k.legacy
+            })),
+            availableScopes: [...VALID_SCOPES]
         },
         { headers: { 'Cache-Control': 'private, no-store' } }
     )
@@ -66,13 +81,45 @@ export async function POST(req) {
     try {
         body = await req.json()
     } catch {
-        // empty body is fine — label is optional
+        // empty body is fine — every field is optional
     }
 
     const parsed = createSchema.safeParse(body)
     if (!parsed.success) {
         const message = parsed.error.errors[0]?.message || 'Invalid input.'
         return Response.json({ success: false, message }, { status: 400 })
+    }
+
+    // Validate scopes against the canonical list. We do this AFTER the
+    // shape check (which catches type errors) so error messages are
+    // about names rather than types.
+    const scopeCheck = normaliseScopes(parsed.data.scopes)
+    if (!scopeCheck.ok) {
+        return Response.json(
+            { success: false, message: scopeCheck.message },
+            { status: 400 }
+        )
+    }
+
+    // Validate expiresAt: must be in the future and within MAX_EXPIRY_DAYS.
+    let expiresAt = null
+    if (parsed.data.expiresAt) {
+        const d = new Date(parsed.data.expiresAt)
+        const now = Date.now()
+        const maxFuture = now + MAX_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+        if (Number.isNaN(d.getTime()) || d.getTime() <= now) {
+            return Response.json(
+                { success: false, message: 'expiresAt must be a future ISO datetime.' },
+                { status: 400 }
+            )
+        }
+        if (d.getTime() > maxFuture) {
+            return Response.json(
+                { success: false, message: `expiresAt cannot be more than ${MAX_EXPIRY_DAYS} days in the future.` },
+                { status: 400 }
+            )
+        }
+        expiresAt = d
     }
 
     await connectDB()
@@ -92,19 +139,22 @@ export async function POST(req) {
         )
     }
 
-    const { apiKey, keyId, label, createdAt } = await issueApiKey(
-        guard.token.id,
-        { label: parsed.data.label }
-    )
+    const issued = await issueApiKey(guard.token.id, {
+        label:     parsed.data.label,
+        scopes:    scopeCheck.scopes,
+        expiresAt
+    })
 
     return Response.json(
         {
             success: true,
-            message: 'API key created. Save it now — it will not be shown again.',
-            apiKey,
-            keyId,
-            label,
-            createdAt
+            message:   'API key created. Save it now — it will not be shown again.',
+            apiKey:    issued.apiKey,
+            keyId:     issued.keyId,
+            label:     issued.label,
+            scopes:    issued.scopes,
+            expiresAt: issued.expiresAt,
+            createdAt: issued.createdAt
         },
         {
             status: 201,
