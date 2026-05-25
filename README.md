@@ -1,6 +1,6 @@
 # OrbitNode API
 
-A self-hosted, production-grade API platform built on Next.js App Router. Developers sign up, receive an API key, and hit endpoints with rate limiting, Redis caching, real-time observability, and a full admin dashboard included out of the box.
+A self-hosted, production-grade API platform built on Next.js 15. Developers sign up via email + OTP, receive an API key, and hit utility endpoints with rate limiting, Redis caching, brute-force-resistant auth, real-time observability, an admin dashboard, and an audit log included out of the box.
 
 ---
 
@@ -11,63 +11,81 @@ A self-hosted, production-grade API platform built on Next.js App Router. Develo
 | Framework | Next.js 15 (App Router) |
 | Database | MongoDB + Mongoose |
 | Cache / Queue | Redis + BullMQ |
-| Auth | Next-Auth (JWT) + bcrypt API keys |
+| Auth | NextAuth (JWT) + bcrypt API keys |
 | Real-time | Socket.IO |
-| Metrics | Prometheus + prom-client |
+| Metrics | Prometheus + `prom-client` |
 | Logging | Pino |
-| Validation | Zod |
-| Frontend | React 19, TailwindCSS, Recharts |
+| Validation | Zod (strict mode everywhere) |
+| Testing | Vitest |
+| CI | GitHub Actions (audit + lint + tests) |
 | Runtime | Node.js 20 |
 
 ---
 
-## Features
+## What's included
 
-### API Platform
-- **Split-key API authentication** — keys take the form `keyId.secret`; only the bcrypt hash of `secret` is stored, so a database leak does not expose live keys
-- **Per-IP Redis rate limiting** with automatic block on breach
-- **Redis response caching** with configurable TTL
-- **Inflight request deduplication** — 50 concurrent requests for the same key run only one scrape
-- **Global concurrency queue** (p-queue) — caps parallel scraper executions
-- **Automatic retry** with exponential backoff (p-retry)
-- **SSRF-hardened outbound fetch** — `ipaddr.js` range classification, DNS-rebinding mitigation, response size + timeout caps
-- **Request ID** propagated through logs and metrics
-- **Graceful shutdown** (SIGINT / SIGTERM)
+### API platform
+- **Split-key API authentication** — keys take the form `keyId.secret`; only the bcrypt hash of `secret` is stored, so a DB leak does not expose live keys.
+- **Multi-key per user** — name keys ("production", "ci-runner"), see `lastUsedAt`, revoke individually.
+- **Per-IP Redis rate limiting** with automatic block on breach.
+- **Redis response caching** with configurable TTL per endpoint.
+- **Inflight request deduplication** — 50 concurrent requests for the same key issue exactly one upstream call.
+- **Automatic retry** with exponential backoff (`p-retry`).
+- **SSRF-hardened outbound fetch** — `ipaddr.js` range classification, DNS-rebinding mitigation (fetch-by-resolved-IP), response size + timeout caps, no redirects by default.
+- **Magic-byte upload validation** (`file-type`) on every persisted file.
+- **Request ID** propagated through logs and metrics.
+- **Graceful shutdown** (SIGINT / SIGTERM).
 
-### Observability Dashboard (admin only)
-- Live request feed via WebSocket
-- Hourly traffic charts
-- Latency heatmap per endpoint
-- Cache hit / miss ratio
-- Top endpoints by volume
-- Top users by request count
-- IP analytics + geo breakdown (country / region / city)
-- System metrics (CPU load, memory, uptime)
-- BullMQ queue state (active, waiting, completed, failed, delayed)
-- Worker process health + heartbeat
-- Prometheus metrics endpoint
+### Authentication & account management
+- **Registration with email OTP** — 6-digit code, 5-minute TTL, **5-attempt cap per OTP**, dual Redis rate limiters (per-IP + per-(IP, email)).
+- **Login brute-force defence** — **per-IP** (20/10 min) + **per-(IP, email)** (10/10 min) Redis sliding-window limiters, plus **per-account lockout** (5 fails → 15-min lock). All three reset on successful login.
+- **Constant-time login** via `FAKE_BCRYPT_HASH` so response timing doesn't reveal whether an email exists or whether an account is locked.
+- **Anti-enumeration OTP flow** — `/api/auth/send-otp` returns the same response whether the email is registered or not; timing is jittered.
+- **Password reset** — token hashed (SHA-256) before storage, 1-hour TTL, atomic single-use claim, clears any active lockout on success.
+- **Self-service API key management** — create / list / revoke from a UI page.
+
+### Admin
+- **User management API** — list/search/paginate, change role, disable/enable (auto-clears lockout), revoke any user's API key.
+- **Admin UI** — `/admin/users` (search + bulk actions) and `/admin/audit-log` (paginated viewer).
+- **Audit log** — every sensitive admin action recorded with actor, target, before/after diff, IP, and user-agent. Append-only; sensitive fields auto-redacted.
+- **Self-modification guards** — admins cannot change their own role or disable themselves through the API.
+
+### Observability dashboard (admin-only)
+- Live request feed via WebSocket.
+- Hourly traffic charts and per-endpoint latency heatmap.
+- Cache hit/miss ratio, active users (24h), top IPs by volume.
+- Geo breakdown (country/region/city) via `geoip-lite`.
+- System metrics (CPU, memory, uptime), BullMQ queue state, worker health.
+- Prometheus scrape endpoint.
 
 ### Security
-- **CSP, HSTS (preload), COOP, CORP, X-Frame-Options, Permissions-Policy, Referrer-Policy** set on every response via `middleware.js`
-- **Edge admin gate** in middleware blocks `/admin`, `/dashboard`, `/api/dashboard/*` for non-admin sessions before any handler runs
-- **Per-route `requireAdmin`** as defense-in-depth even if middleware is ever misconfigured
-- **`requireJson`** rejects non-JSON POSTs (lightweight CSRF mitigation on top of SameSite cookies)
-- **Constant-time admin key compare** via `crypto.timingSafeEqual`; fail-closed when env var unset
-- **Boot-time secret validation** (`lib/auth/env.js`) refuses to start with weak/missing secrets in production
-- **Zod-validated, NoSQL-injection-safe** credential & registration handlers
-- **OTP brute-force defence**: per-OTP attempt counter + per-IP and per-(IP, email) Redis sliding-window limiters
-- **Username/email enumeration resistance**: `/auth/send-otp` returns the same response regardless of whether the address is registered; `/auth/verify-otp` collapses duplicate-username / duplicate-email errors into one generic message
-- **Filename allow-list** on `/api/uploads` (alphanumerics + `_-.` only) eliminates path traversal and `Content-Disposition` header injection
-- **Anti-spoof client-IP extraction** (`lib/clientIp.js`) honors `X-Forwarded-For` only when `TRUSTED_PROXIES` is set
-- **Non-root Docker user**, multi-stage build, healthcheck
-- **Compose-private datastores**: Mongo and Redis have no published ports and require credentials
+- **Strict CSP, HSTS (preload), COOP, CORP, X-Frame-Options, Permissions-Policy, Referrer-Policy** set on every response via `middleware.js`.
+- **Edge admin gate** — `/admin`, `/dashboard`, `/api/dashboard/*`, `/api/admin/*` all blocked for non-admin tokens before any handler runs.
+- **Per-route `requireAdmin`** as defense-in-depth even if middleware is ever misconfigured.
+- **`requireJson`** rejects non-JSON POSTs (lightweight CSRF mitigation on top of SameSite cookies).
+- **`requireSession`** for user-facing routes.
+- **Constant-time admin-key compare** via `crypto.timingSafeEqual`; **fails closed** when `ADMIN_KEY` is unset.
+- **Boot-time secret validation** (`lib/auth/env.js`) refuses to start in production with weak/missing secrets.
+- **Anti-spoof client-IP extraction** (`lib/clientIp.js`) honors `X-Forwarded-For` only when `TRUSTED_PROXIES` is set.
+- **Zod-validated, NoSQL-injection-safe** auth handlers (`.strict()` schemas reject unknown fields → user cannot self-promote via `{ role: "admin" }`).
+- **Filename allow-list** on `/api/uploads` (`^[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}$`) eliminates path traversal and `Content-Disposition` header injection.
+- **Non-root Docker** user, multi-stage build, healthcheck.
+- **Private datastores** in `docker-compose.yml` — Mongo and Redis have no published ports.
+- **`SECURITY.md`** + **`/.well-known/security.txt`** for coordinated disclosure.
+
+### Testing & CI
+- **Vitest suite** covering validators, helpers, audit-log sanitisation, SSRF, and a "every `@/` import resolves" guard that catches the kind of refactor breakage that ships features in a broken state.
+- **GitHub Actions** runs `npm audit --omit=dev --audit-level=high`, `npm run lint`, and `npm test` on every push/PR.
+- **Dependabot** weekly PRs grouped by minor/patch, monthly for actions.
 
 ---
 
-## Request Lifecycle
+## Request lifecycle (scraper endpoints)
+
+Every scraper plugs into the shared `runScraper(req, opts)` wrapper, so the pipeline below applies uniformly.
 
 ```
-Incoming Request
+Incoming request
         │
         ▼
  middleware.js
@@ -75,21 +93,16 @@ Incoming Request
  └── If path is admin-scoped, verify JWT + role=admin before letting through
         │
         ▼
- API Route Handler
-        │
-        ├── 1. requireJson           — reject non-JSON POSTs
-        ├── 2. requestLogger         — assign request ID, log entry
-        ├── 3. applyRateLimit        — Redis sliding window per IP
-        ├── 4. verifyApiKey          — split-key format check + bcrypt
-        ├── 5. Zod schema parse      — validate body, reject NoSQL operators
-        ├── 6. validateUrl / safeFetch — SSRF block, DNS rebinding mitigation
-        ├── 7. getCache              — return early on Redis hit
-        ├── 8. dedup                 — coalesce identical in-flight requests
-        ├── 9. globalQueue           — enforce concurrency cap
-        ├── 10. withRetry            — up to 3 attempts, exponential backoff
-        ├── 11. Scraper              — fetch + parse external data
-        ├── 12. setCache             — store result in Redis with TTL
-        └── 13. logApiMetric         — write to MongoDB + Prometheus + Socket.IO
+ runScraper:
+        ├── 1. verifyApiKey    — x-api-key required (bcrypt + lastUsedAt bump)
+        ├── 2. applyRateLimit  — Redis sliding window per IP
+        ├── 3. Zod parse       — validates input; rejects NoSQL operators
+        ├── 4. getCache        — return early on Redis hit (no upstream call)
+        ├── 5. dedup           — coalesce identical in-flight requests
+        ├── 6. withRetry       — up to 3 attempts, exponential backoff
+        ├── 7. scrape          — your function: SSRF-safe fetch + parse
+        ├── 8. setCache        — store result with TTL
+        └── 9. logApiMetric    — Mongo ApiLog + Prometheus + Socket.IO + IP analytics
                     │
                     ▼
              BullMQ (heavy async jobs)
@@ -100,94 +113,92 @@ Incoming Request
 
 ---
 
-## Project Structure
+## API endpoints
 
-```
-/app
-├── api/
-│   ├── auth/[...nextauth]/     — Next-Auth handler (re-exports authOptions)
-│   ├── dashboard/              — ALL routes require admin session
-│   │   ├── advanced/           — hourly hits, geo, IP, cache analytics
-│   │   ├── charts/             — traffic chart data
-│   │   ├── ip/                 — top IPs
-│   │   ├── queue/              — BullMQ state
-│   │   ├── system/             — CPU, memory, uptime
-│   │   ├── telemetry/          — in-process telemetry snapshot
-│   │   └── workers/            — worker process info
-│   ├── docs/                   — Swagger/OpenAPI docs (admin-key protected)
-│   ├── health/                 — public MongoDB + Redis health check
-│   ├── prometheus/             — Prometheus scrape (admin-key protected)
-│   ├── socket/                 — Socket.IO init (admin session required)
-│   ├── uploads/                — serve files from tmp/ (API key required)
-│   └── youtube/                — example scraper route
-├── admin/                      — admin UI (server component, double-gated)
-├── auth/login/                 — login page
-├── auth/register/              — registration (3 steps: form → OTP → key)
-├── dashboard/                  — main dashboard UI (admin session required)
-├── features/[slug]/            — feature detail pages
-└── user/profile/               — user profile page
+### Public (no auth)
+| Endpoint | Description |
+|---|---|
+| `GET /api/health` | Mongo + Redis status, suitable for load balancers. No internals exposed. |
+| `GET /api/features` | Scraper catalogue from `features.json`. 60s in-memory cache. |
+| `POST /api/views/index` | Page-view counter with 5-minute Redis debounce per IP/slug. |
 
-/lib
-├── auth/
-│   ├── adminKey.js             — timing-safe ADMIN_KEY check
-│   ├── authOptions.js          — Next-Auth config (centralised)
-│   ├── env.js                  — boot-time secret validation
-│   ├── otpRateLimit.js         — Redis limiters for /verify-otp
-│   ├── requireAdmin.js         — per-route admin guard
-│   ├── requireJson.js          — content-type guard / CSRF mitigation
-│   └── timing.js               — jitter to mask response timing
-├── middleware/
-│   ├── adminRateLimit.js       — dashboard rate limiter
-│   ├── apiKey.js               — verifyApiKey (split-key + bcrypt)
-│   └── requestLogger.js        — request ID + entry/exit logging
-├── security/
-│   └── ssrf.js                 — validateUrl + safeFetch
-├── validators/
-│   └── auth.js                 — Zod schemas (login, register)
-├── abuseDetection.js           — Redis sliding-window abuse counter
-├── apiResponse.js
-├── bullmq.js
-├── cache.js
-├── clientIp.js                 — anti-spoof IP extraction
-├── downloadFile.js             — uses safeFetch, validateUpload
-├── errorHandler.js
-├── inflight.js
-├── ipAnalytics.js
-├── liveMetrics.js
-├── logger.js                   — pino (pretty in dev, JSON in prod)
-├── metricsLogger.js
-├── mongodb.js
-├── prometheus.js
-├── queue.js
-├── queueTelemetry.js
-├── rateLimit.js
-├── redis.js
-├── retry.js
-├── shutdown.js
-├── socket.js                   — fail-closed CORS (no wildcard)
-├── swagger.js
-├── telemetry.js
-├── uploadValidation.js         — magic-byte (file-type) check
-└── validation.js
+### Auth flow
+| Endpoint | Description |
+|---|---|
+| `POST /api/auth/send-otp` | Send registration OTP. Generic 200 regardless of email existence. |
+| `POST /api/auth/verify-otp` | Verify OTP + create account; returns one-time `apiKey`. |
+| `POST /api/auth/forgot-password` | Request reset link by email. Generic 200. |
+| `POST /api/auth/reset-password` | Consume reset token, set new password, clear lockout. |
+| `POST /api/auth/callback/credentials` | NextAuth sign-in. Email + password. |
 
-/models
-├── apiLog.js                   — per-request log (TTL: 90 days)
-├── otp.js                      — OTP codes (TTL: 5 minutes) + attempt counter
-├── pageView.js                 — page view counters
-└── user.js                     — users + API key hashes + role
+### Authenticated user (session cookie)
+| Endpoint | Description |
+|---|---|
+| `GET /api/user/data` | Current user profile (no secrets). |
+| `POST /api/user/update` | Update username / image (strict schema; role/password rejected). |
+| `GET /api/stats/requests` | Per-user request stats (24h hourly + totals). |
+| `GET /api/user/api-keys` | List your active and revoked keys. |
+| `POST /api/user/api-keys` | Issue a new key (returns plaintext ONCE). |
+| `DELETE /api/user/api-keys/:keyId` | Revoke a key you own. |
 
-/workers
-└── scraper.worker.js           — BullMQ worker process (runs separately)
+### API key (x-api-key header)
+| Endpoint | Description |
+|---|---|
+| `GET /api/github/user?username=…` | GitHub user profile. 10-min cache. |
+| `GET /api/github/repos?username=…&page=&perPage=&sort=` | Paginated repos. 5-min cache. |
+| `GET /api/github/repo?owner=…&name=…` | Single repo detail. 5-min cache. |
+| `GET /api/uploads?filename=…` | Serves files under `tmp/` (strict filename allow-list). |
 
-/components
-├── LiveMetrics.jsx
-├── alert.jsx
-├── navbar.jsx
-└── providers.jsx
+### Admin (session cookie + `role: 'admin'`)
+| Endpoint | Description |
+|---|---|
+| `GET /api/admin/users` | List/search/filter users. |
+| `GET /api/admin/users/:id` | Single user detail (+ active key count). |
+| `PATCH /api/admin/users/:id` | Update role / disabled / endDate. |
+| `POST /api/admin/users/:id/disable` | Disable account. |
+| `POST /api/admin/users/:id/enable` | Enable + clear lockout. |
+| `DELETE /api/admin/users/:id/api-keys/:keyId` | Admin-side key revoke. |
+| `GET /api/admin/audit-log` | Paginated audit log (filter by actor/target/action). |
+| `GET /api/dashboard/*` | Dashboard data (system, queue, charts, advanced…). |
 
-/contexts
-└── userContext.jsx
-```
+### Admin (`x-admin-key` header — for ops tools)
+| Endpoint | Description |
+|---|---|
+| `GET /api/prometheus` | Prometheus scrape. Fails closed if `ADMIN_KEY` unset. |
+| `GET /api/docs` | OpenAPI / Swagger spec. |
+
+---
+
+## Authentication flows
+
+### Registration
+
+1. `POST /api/auth/send-otp { email }` → generic 200. If the address is registered, no email is sent and the response is **indistinguishable** from the new-user case (timing jittered).
+2. `POST /api/auth/verify-otp { username, email, password, otp }` → on success returns `{ apiKey, apiKeyId }` **once**. Save it. The server only stores the bcrypt hash.
+
+Brute-force defences on `/verify-otp`:
+- Per-OTP attempt cap (5).
+- Per-(IP, email) limit: 10 attempts / 10 min.
+- Per-IP global limit: 50 attempts / 10 min.
+
+### Login
+
+`signIn('credentials', { email, password })` via NextAuth.
+- Per-IP limit (20 / 10 min) — fail-fast before bcrypt to defeat CPU-DoS.
+- Per-(IP, email) limit (10 / 10 min).
+- Per-account lockout (5 failures → 15-min lock).
+- bcrypt runs against `FAKE_BCRYPT_HASH` when the user doesn't exist *or* the account is locked, so timing never reveals the difference.
+- All counters wipe on successful login.
+
+### Password reset
+
+1. `POST /api/auth/forgot-password { email }` → generic 200.
+2. User clicks the emailed link, lands on `/auth/reset-password?token=…`.
+3. `POST /api/auth/reset-password { token, password }` → token is hashed-and-claimed atomically (rejects reuse), password updated, all pending tokens for that user wiped, lockout cleared.
+
+### Admin access
+
+A user is an admin if their User document has `role: 'admin'`. Both the edge middleware and each protected route verify `token.role === 'admin'`.
 
 ---
 
@@ -212,23 +223,30 @@ npm install
 cp .env.example .env
 ```
 
-Fill in the values — see the [Environment Variables](#environment-variables) section below. The server refuses to start in production if any of `NEXTAUTH_SECRET`, `JWT_SECRET`, `ADMIN_KEY`, `FAKE_BCRYPT_HASH`, or `ALLOWED_ORIGIN` are missing or shorter than 32 characters.
+Fill in the values — see [Environment Variables](#environment-variables) below.
+
+> ⚠️ The server **refuses to start in production** if any of `NEXTAUTH_SECRET`, `JWT_SECRET`, `ADMIN_KEY`, `FAKE_BCRYPT_HASH`, or `ALLOWED_ORIGIN` are missing or shorter than 32 characters.
 
 ### 4. Run in development
-
-Open two terminals:
 
 ```bash
 # Terminal 1 — Next.js dev server
 npm run dev
 
-# Terminal 2 — BullMQ worker process (required for queue-based jobs)
+# Terminal 2 — BullMQ worker (required for queue-based jobs)
 npm run worker
+```
+
+### 5. Run the test suite
+
+```bash
+npm test           # one-off
+npm run test:watch # watch mode while developing
 ```
 
 ---
 
-## Production Deployment
+## Production deployment
 
 ### Option A — PM2
 
@@ -237,21 +255,13 @@ npm run build
 npx pm2 start ecosystem.config.js
 ```
 
-PM2 starts two processes automatically: `orbitnode-api` (Next.js) and `scraper-worker` (BullMQ worker).
-
-```bash
-npx pm2 logs          # view logs
-npx pm2 monit         # process monitor
-npx pm2 stop all      # stop
-```
-
 ### Option B — Docker Compose
 
 ```bash
 docker-compose up --build
 ```
 
-Services started: `api` (port 3000), `worker`, `redis`, `mongodb`. **`redis` and `mongodb` are intentionally not published to the host**; they are reachable only from the compose network. If you need host access, add `ports: ['127.0.0.1:6379:6379']` (or similar) explicitly — never bind to `0.0.0.0`.
+Services: `api` (port 3000), `worker`, `redis`, `mongodb`. **`redis` and `mongodb` are intentionally not published to the host** — they're reachable only from the compose network. If you need host access, bind explicitly to `127.0.0.1:` (never `0.0.0.0`).
 
 ---
 
@@ -265,10 +275,10 @@ ALLOWED_ORIGIN=https://yourdomain.com      # Socket.IO CORS origin; comma-separa
 TRUSTED_PROXIES=10.0.0.5,10.0.0.6          # IPs of your LB/proxy; required for accurate rate-limit keys
 
 # ── Auth
-NEXTAUTH_SECRET=                           # required, ≥32 chars (openssl rand -hex 32)
-NEXTAUTH_URL=https://yourdomain.com        # required — must be your real domain in prod
-JWT_SECRET=                                # required, ≥32 chars
-FAKE_BCRYPT_HASH=                          # required in prod — prevents username enumeration
+NEXTAUTH_SECRET=                           # required, >=32 chars (openssl rand -hex 32)
+NEXTAUTH_URL=https://yourdomain.com        # required in prod — must be your real domain
+JWT_SECRET=                                # required, >=32 chars
+FAKE_BCRYPT_HASH=                          # required in prod — prevents login enumeration
                                            # node -e "import('bcryptjs').then(b => b.default.hash('dummy',12).then(console.log))"
 
 # ── Database
@@ -282,82 +292,144 @@ REDIS_PORT=6379
 REDIS_PASSWORD=                            # required in prod
 
 # ── Admin
-ADMIN_KEY=                                 # protects /api/prometheus and /api/docs (≥32 chars)
+ADMIN_KEY=                                 # protects /api/prometheus and /api/docs (>=32 chars)
                                            # openssl rand -hex 32
 
-# ── Spotify scraper (optional)
-SPOTIFY_ID=
-SPOTIFY_SECRET=
-
-# ── Email (OTP, optional unless registration is enabled)
+# ── Email (OTP + password reset)
 EMAIL_USER=
 EMAIL_PASS=
 
-# ── Instagram scraper (optional)
-INSTAGRAM_HASH_SECRET=                     # generate fresh; do NOT reuse any value seen in this repo's history
+# ── GitHub scraper (optional)
+GITHUB_TOKEN=                              # 60/hr anonymous -> 5000/hr authenticated
+                                           # https://github.com/settings/tokens (no scopes needed)
 ```
 
 ---
 
-## API Usage
-
-All scraper / data routes require an `x-api-key` header. Keys are issued **once** on registration and take the format `keyId.secret`. The plaintext key is never persisted server-side — if a user loses theirs they must rotate.
+## API usage
 
 ```bash
-curl -X POST https://yourdomain.com/api/youtube \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: YOUR_KEY_ID.YOUR_SECRET" \
-  -d '{ "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }'
+# Issue a key (via UI) then:
+export KEY="<keyId>.<secret>"
+
+# GitHub demo
+curl -s "http://localhost:3000/api/github/user?username=octocat" \
+  -H "x-api-key: $KEY" | jq
+
+curl -s "http://localhost:3000/api/github/repos?username=octocat&perPage=5" \
+  -H "x-api-key: $KEY" | jq
+
+curl -s "http://localhost:3000/api/github/repo?owner=octocat&name=Hello-World" \
+  -H "x-api-key: $KEY" | jq
 ```
 
 **Rate limit:** 100 requests per 60 seconds per IP. Exceeding this returns `429` with a 5-minute block.
 
 ---
 
-## Internal Endpoints
+## Project structure
 
-| Endpoint | Auth | Description |
-|---|---|---|
-| `GET /api/health` | None | MongoDB + Redis status (no internals). Safe for load balancers. |
-| `GET /api/prometheus` | `x-admin-key` | Prometheus metrics scrape. Constant-time check; fails closed when `ADMIN_KEY` unset. |
-| `GET /api/docs` | `x-admin-key` | Swagger / OpenAPI spec. |
-| `GET /api/dashboard/*` | **Admin session** | Every dashboard route is gated at the edge in `middleware.js` and re-checked per route via `requireAdmin`. |
-| `GET /api/socket` | **Admin session** | Initialises the Socket.IO server. |
-| `GET /api/uploads` | `x-api-key` | Serves files from `tmp/`. Filename must match `^[A-Za-z0-9_-]+\.[A-Za-z0-9]{1,8}$`. |
+```
+/app
+├── api/
+│   ├── admin/users/[id]/...          user-management API 
+│   ├── admin/audit-log/              audit log API
+│   ├── auth/[...nextauth]/           NextAuth handler (re-exports authOptions)
+│   ├── auth/forgot-password/         password reset request
+│   ├── auth/reset-password/          password reset claim
+│   ├── dashboard/                    all routes require admin session
+│   ├── docs/                         Swagger/OpenAPI (admin-key)
+│   ├── features/                     scraper catalogue
+│   ├── github/{user,repos,repo}/     demo scraper endpoints
+│   ├── health/                       public health check
+│   ├── prometheus/                   Prometheus scrape (admin-key)
+│   ├── socket/                       Socket.IO init (admin session)
+│   ├── stats/requests/               per-user stats
+│   ├── uploads/                      api-key gated file serving
+│   ├── user/data/                    current user (powers useUser hook)
+│   ├── user/update/                  profile self-edit
+│   ├── user/api-keys/                self-service key management
+│   └── views/index/                  page-view counter
+├── admin/                            admin home (Server Component)
+├── admin/users/                      user management UI
+├── admin/audit-log/                  audit log viewer UI
+├── auth/{login,register,forgot-password,reset-password}/
+├── user/{profile,api-keys}/
+└── dashboard/
+
+/lib
+├── auth/
+│   ├── apiKeys.js                    generateApiKey, issueApiKey
+│   ├── adminKey.js                   timing-safe ADMIN_KEY check
+│   ├── authOptions.js                NextAuth config (centralised)
+│   ├── env.js                        boot-time secret validation
+│   ├── loginLockout.js               per-account lockout state
+│   ├── loginRateLimit.js             per-IP + per-(IP,email) login limiters
+│   ├── otpRateLimit.js               OTP verify limiters
+│   ├── passwordResetRateLimit.js     reset request/verify limiters
+│   ├── requireAdmin.js               admin guard (returns Response | null)
+│   ├── requireSession.js             session guard
+│   ├── requireJson.js                content-type guard / CSRF mitigation
+│   └── timing.js                     jitter helpers
+├── middleware/
+│   ├── adminRateLimit.js
+│   ├── apiKey.js                     verifyApiKey (split-key + bcrypt + revoked check)
+│   └── requestLogger.js
+├── scrapers/
+│   ├── githubClient.js               SSRF-safe wrapper around api.github.com
+│   └── runScraper.js                 the 9-step pipeline
+├── security/
+│   └── ssrf.js                       validateUrl + safeFetch
+├── validators/
+│   ├── admin.js
+│   ├── auth.js
+│   ├── github.js
+│   └── user.js
+├── abuseDetection.js                 Redis sliding-window abuse counter
+├── audit.js                          writeAudit (never throws, redacts secrets)
+├── cache.js
+├── clientIp.js                       anti-spoof IP extraction
+├── downloadFile.js                   uses safeFetch + validateUpload
+├── ipAnalytics.js                    Redis-backed top-IP analytics
+├── logger.js                         pino (pretty in dev, JSON in prod)
+├── prometheus.js
+├── rateLimit.js
+├── redis.js
+├── retry.js
+├── socket.js                         fail-closed CORS
+├── swagger.js
+├── telemetry.js
+└── uploadValidation.js               magic-byte check
+
+/models
+├── apiKey.js                         per-key document (label, lastUsedAt, revoked)
+├── apiLog.js                         per-request log
+├── auditLog.js                       admin actions
+├── otp.js                            OTP codes + attempt counter
+├── pageView.js
+├── passwordReset.js                  hashed reset tokens
+└── user.js                           users (+ failedLoginAttempts, lockUntil)
+
+/tests
+├── audit.test.js
+├── helpers.test.js
+├── imports.test.js                   guards against renames that leave dangling imports
+├── ssrf.test.js
+└── validators.test.js
+
+/.github
+├── workflows/ci.yml                  audit + lint + test
+└── dependabot.yml                    weekly grouped updates
+
+/public/.well-known/security.txt      RFC 9116 disclosure pointer
+SECURITY.md                           disclosure policy
+```
 
 ---
 
-## Authentication Flows
+## Security reporting
 
-### Registration
-
-1. `POST /api/auth/send-otp { email }` — returns a generic 200 in all cases. If the address is already registered the response is identical to the "new user" case, with no email actually sent (anti-enumeration).
-2. `POST /api/auth/verify-otp { username, email, password, otp }` — on success returns `{ apiKey, apiKeyId }` **once**. The user must save the key; the server only retains its bcrypt hash.
-
-Brute-force defences on `/verify-otp`:
-- Per-OTP attempt cap (5).
-- Per-(IP, email) limit: 10 attempts / 10 min.
-- Per-IP global limit: 50 attempts / 10 min.
-
-### Login
-
-`signIn('credentials', { email, password })` via NextAuth. Even when the email does not exist, bcrypt runs against `FAKE_BCRYPT_HASH` to keep response timing constant. Inputs are Zod-validated to reject NoSQL operator payloads before hitting MongoDB.
-
-### Admin Access
-
-A user becomes an admin by having `role: 'admin'` on their User document. Both the edge middleware and each protected route verify `token.role === 'admin'`.
-
----
-
-## Adding New Scrapers
-
-See [`ADD_NEW_APIS_&_ENDPOINTS.md`](./ADD_NEW_APIS_&_ENDPOINTS.md) for the step-by-step guide to adding a new scraper endpoint with caching, rate limiting, validation, and metrics wired in automatically.
-
----
-
-## Security Reporting
-
-If you find a vulnerability, please **do not** open a public GitHub issue. Email the maintainer (see commit history) with details and a reproduction. Coordinated disclosure is appreciated.
+See [`SECURITY.md`](./SECURITY.md). **Do not file public issues for vulnerabilities** — use GitHub's [private vulnerability reporting](https://github.com/Cosm1cBug/rest-api/security/advisories/new).
 
 ---
 

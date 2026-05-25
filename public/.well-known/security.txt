@@ -1,0 +1,14 @@
+# security.txt — see https://securitytxt.org for the spec (RFC 9116).
+#
+# This file tells security researchers how to disclose vulnerabilities
+# without filing a public issue (which would tip off attackers).
+
+Contact: https://github.com/Cosm1cBug/rest-api/security/advisories/new
+Expires: 2027-05-24T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://yourdomain.com/.well-known/security.txt
+Policy: https://github.com/Cosm1cBug/rest-api/security/policy
+
+# When updating this file:
+#   - Bump `Expires` to at most ~12 months out.
+#   - Update `Canonical` to your real production domain.

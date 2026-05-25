@@ -1,0 +1,83 @@
+name: CI
+
+# Runs on every push and PR against main.
+# Three independent gates: dependency audit, lint, tests.
+# Any one of them failing blocks the merge.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # allow manual re-runs from the UI
+
+# Cancel in-progress runs for the same PR/branch when a new push arrives.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Default least-privilege token. CI doesn't write to the repo.
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit (production deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # We DON'T install dependencies here — npm audit reads
+      # package-lock.json directly and queries the registry. That makes
+      # this job fast (~10s) and ensures it's not polluted by post-install
+      # script side-effects.
+      #
+      # Severity threshold: fail on `high` or above. `moderate` is too
+      # noisy in practice (Next.js + its deep tree always has a few).
+      # Adjust here if you want stricter or looser.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+  lint:
+    name: ESLint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run linter
+        run: npm run lint
+
+  test:
+    name: Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        # NODE_ENV=test so any code branching on env doesn't trip on
+        # production-only safety checks (e.g. lib/auth/env.js).
+        env:
+          NODE_ENV: test
+        run: npm test

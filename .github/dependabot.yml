@@ -1,0 +1,29 @@
+# Weekly dependency-update PRs grouped by ecosystem.
+# Catches security-only updates within ~24h via npm advisory database.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    # Group all minor/patch updates together to keep PR noise down.
+    # Major bumps still get their own PR so they can be reviewed individually.
+    groups:
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    # Ignore breaking-by-design upgrades that need manual planning.
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
