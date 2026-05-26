@@ -1,6 +1,7 @@
-import { Worker, scraperQueue } from '@/lib/bullmq.js'
-import { bullmqRedis } from '@/lib/redis.js'
-import { updateQueueStats } from '@/lib/queueTelemetry.js'
+import { Worker } from 'bullmq'
+import { scraperQueue } from '../lib/bullmq.js'
+import { bullmqRedis } from '../lib/redis.js'
+import { updateQueueStats } from '../lib/queueTelemetry.js'
 import { trackWorkerCompleted, trackWorkerFailed } from '@/lib/telemetry.js'
 
 const worker = new Worker('scraper-queue', async job => {
