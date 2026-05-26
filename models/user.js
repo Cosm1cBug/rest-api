@@ -8,8 +8,7 @@ const UserSchema = new mongoose.Schema({
         sparse: true
     },
     keyHash: {
-        type: String,
-        required: true
+        type: String
     },
     username: {
         type: String,
