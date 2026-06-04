@@ -1,35 +1,62 @@
 import mongoose from 'mongoose'
 import { redis } from '@/lib/redis.js'
+import { checkAdminKey } from '@/lib/auth/adminKey.js'
 
-export async function GET() {
+const REDIS_PING_TIMEOUT_MS = 2000
 
-    let mongo = 'disconnected'
-    let redisStatus = 'disconnected'
+const PUBLIC_HEADERS = {
+    'Cache-Control': 'no-store',
+    'Content-Type':  'application/json; charset=utf-8'
+}
 
+async function pingRedis() {
     try {
-        mongo = mongoose.connection.readyState === 1
-            ? 'connected'
-            : 'disconnected'
+        const result = await Promise.race([
+            redis.ping(),
+            new Promise((_, reject) =>
+                setTimeout(() => reject(new Error('timeout')), REDIS_PING_TIMEOUT_MS)
+            )
+        ])
+        return result === 'PONG' ? 'connected' : 'disconnected'
+    } catch {
+        return 'disconnected'
+    }
+}
 
-    } catch {}
-
+function mongoStatus() {
     try {
-        await redis.ping()
+        return mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+    } catch {
+        return 'disconnected'
+    }
+}
 
-        redisStatus = 'connected'
+export async function GET(req) {
 
-    } catch {}
+    const [mongo, redisStatus] = await Promise.all([
+        Promise.resolve(mongoStatus()),
+        pingRedis()
+    ])
 
     const healthy = mongo === 'connected' && redisStatus === 'connected'
 
-    return Response.json({
+    const wantsDetail = checkAdminKey(req) === null
 
+    const body = {
         status: healthy ? 'ok' : 'degraded',
-        mongodb: mongo,
-        redis: redisStatus,
-        timestamp: Date.now()
-    },
-    {
-        status: healthy ? 200 : 503
+        timestamp: Date.now(),
+        ...(wantsDetail && {
+            services: {
+                mongodb: mongo,
+                redis:   redisStatus
+            }
+        })
+    }
+
+    return Response.json(body, {
+        status: healthy ? 200 : 503,
+        headers: PUBLIC_HEADERS
     })
 }
+
+export const dynamic = 'force-dynamic'
