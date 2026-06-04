@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
 const ADMIN_PREFIXES = [
-    '/api/dashboard',
-    '/dashboard',
-    '/admin'
+    '/api/:path',
+    '/dashboard/:path',
+    '/admin/:path'
 ]
 
 const PUBLIC_EXCEPTIONS = []
@@ -97,8 +97,6 @@ export async function middleware(req) {
 
 export const config = {
     matcher: [
-        '/api/:path*',
-        '/dashboard/:path*',
-        '/admin/:path*'
+        '/((?!_next/static|_next/image|favicon.ico|public/).*)'
     ]
 }

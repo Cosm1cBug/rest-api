@@ -43,6 +43,10 @@ const apiLogSchema = new mongoose.Schema({
 
     userAgent: String,
 
+    requestId: {
+        type: String,
+        index: true
+    },
     quotaUsed: {
         type: Number,
         default: 1
