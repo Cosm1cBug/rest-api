@@ -1,7 +1,7 @@
 name: CI
 
 # Runs on every push and PR against main.
-# Three independent gates: dependency audit, lint, tests.
+# Four independent gates: dependency audit, lint, tests, production build.
 # Any one of them failing blocks the merge.
 
 on:
@@ -12,15 +12,22 @@ on:
   workflow_dispatch:  # allow manual re-runs from the UI
 
 # Cancel in-progress runs for the same PR/branch when a new push arrives.
+# Saves CI minutes on rapid push-fix-push loops.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Default least-privilege token. CI doesn't write to the repo.
+# Default least-privilege token. CI doesn't write to the repo or publish
+# anything; reading checkout content is the only permission it needs.
 permissions:
   contents: read
 
 jobs:
+
+  # ── 1. Dependency audit ──────────────────────────────────────────
+  # Runs first because it's the cheapest signal and catches the most
+  # urgent class of issue (a known CVE just landed in a transitive dep).
+  # No `npm ci` needed — npm audit reads package-lock.json directly.
   audit:
     name: npm audit (production deps)
     runs-on: ubuntu-latest
@@ -33,17 +40,18 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # We DON'T install dependencies here — npm audit reads
-      # package-lock.json directly and queries the registry. That makes
-      # this job fast (~10s) and ensures it's not polluted by post-install
-      # script side-effects.
-      #
       # Severity threshold: fail on `high` or above. `moderate` is too
-      # noisy in practice (Next.js + its deep tree always has a few).
-      # Adjust here if you want stricter or looser.
+      # noisy in practice — Next.js's deep tree always has a few
+      # advisories that have no patched upstream version yet. If you
+      # care about moderates, run `npm audit` locally and decide which
+      # ones are real (most are not exploitable in this app's surface).
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
 
+  # ── 2. Lint ──────────────────────────────────────────────────────
+  # Style + obvious code smells. Fast (no test execution), catches
+  # things like unused imports / undefined refs that would crash at
+  # runtime but compile fine.
   lint:
     name: ESLint
     runs-on: ubuntu-latest
@@ -61,6 +69,10 @@ jobs:
       - name: Run linter
         run: npm run lint
 
+  # ── 3. Unit tests ────────────────────────────────────────────────
+  # Vitest — runs in ~5s, covers validators, helpers, audit log
+  # redaction, SSRF guards, schema field presence, the imports-resolve
+  # regression test, etc.
   test:
     name: Vitest
     runs-on: ubuntu-latest
@@ -77,7 +89,55 @@ jobs:
 
       - name: Run tests
         # NODE_ENV=test so any code branching on env doesn't trip on
-        # production-only safety checks (e.g. lib/auth/env.js).
+        # production-only safety checks (e.g. lib/auth/env.js refusing
+        # to start with weak secrets).
         env:
           NODE_ENV: test
         run: npm test
+
+  # ── 4. Production build ──────────────────────────────────────────
+  # The missing job that would have caught V9-1: a typo'd import path
+  # in lib/telemetry.js compiled fine for Vitest (which doesn't bundle)
+  # but blew up `next build` with "Module not found". This job runs
+  # the full webpack compile so import-resolution bugs fail BEFORE
+  # merge instead of when someone tries to deploy.
+  #
+  # Stub env vars are required because instrumentation.js calls
+  # assertSecrets() at boot, and several routes import modules that
+  # connect to Mongo/Redis at module load.
+  build:
+    name: Next build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        # The actual values don't matter — the build only USES them
+        # to satisfy assertSecrets() and the env-dependent module
+        # initialisations. No real service connections happen during
+        # `next build` because every API route has
+        # `export const dynamic = 'force-dynamic'`.
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+          NODE_ENV: production
+          # 32 chars minimum for assertSecrets():
+          NEXTAUTH_SECRET: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+          JWT_SECRET:      'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
+          NEXTAUTH_URL:    'http://localhost:3000'
+          ALLOWED_ORIGIN:  'http://localhost:3000'
+          MONGODB_URI:     'mongodb://stub/orbitnode'
+          REDIS_HOST:      '127.0.0.1'
+          REDIS_PORT:      '6379'
+          # ADMIN_KEY + FAKE_BCRYPT_HASH are not strictly required at
+          # build time. FAKE_BCRYPT_HASH was removed as a hard
+          # requirement in V9 (getFakeHash() generates it at boot).
+        # Skip lint inside the build — we already lint in its own job.
+        run: npx next build --no-lint
