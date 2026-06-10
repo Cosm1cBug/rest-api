@@ -39,7 +39,7 @@ A self-hosted, production-grade API platform built on Next.js 15. Developers sig
 ### Authentication & account management
 - **Registration with email OTP** — 6-digit code, 5-minute TTL, **5-attempt cap per OTP**, dual Redis rate limiters (per-IP + per-(IP, email)).
 - **Login brute-force defence** — **per-IP** (20/10 min) + **per-(IP, email)** (10/10 min) Redis sliding-window limiters, plus **per-account lockout** (5 fails → 15-min lock). All three reset on successful login.
-- **Constant-time login** via `FAKE_BCRYPT_HASH` so response timing doesn't reveal whether an email exists or whether an account is locked.
+- **Constant-time login** — bcrypt always runs against a dummy hash generated at boot (`lib/auth/fakeHash.js`) when the email is unknown, so response timing doesn't reveal whether an email exists or whether an account is locked. No env var to forget.
 - **Anti-enumeration OTP flow** — `/api/auth/send-otp` returns the same response whether the email is registered or not; timing is jittered.
 - **Password reset** — token hashed (SHA-256) before storage, 1-hour TTL, atomic single-use claim, clears any active lockout on success.
 - **Self-service API key management** — create / list / revoke from a UI page.
@@ -187,7 +187,7 @@ Brute-force defences on `/verify-otp`:
 - Per-IP limit (20 / 10 min) — fail-fast before bcrypt to defeat CPU-DoS.
 - Per-(IP, email) limit (10 / 10 min).
 - Per-account lockout (5 failures → 15-min lock).
-- bcrypt runs against `FAKE_BCRYPT_HASH` when the user doesn't exist *or* the account is locked, so timing never reveals the difference.
+- bcrypt runs against a boot-generated dummy hash (via `getFakeHash()`) when the user doesn't exist *or* the account is locked, so timing never reveals the difference. The hash is computed once at process start (~250 ms) and cached for the lifetime of the process.
 - All counters wipe on successful login.
 
 ### Password reset
@@ -225,7 +225,7 @@ cp .env.example .env
 
 Fill in the values — see [Environment Variables](#environment-variables) below.
 
-> ⚠️ The server **refuses to start in production** if any of `NEXTAUTH_SECRET`, `JWT_SECRET`, `ADMIN_KEY`, `FAKE_BCRYPT_HASH`, or `ALLOWED_ORIGIN` are missing or shorter than 32 characters.
+> ⚠️ The server **refuses to start in production** if any of `NEXTAUTH_SECRET`, `JWT_SECRET`, `ADMIN_KEY`, or `ALLOWED_ORIGIN` are missing or shorter than 32 characters (see `lib/auth/env.js`).
 
 ### 4. Run in development
 
@@ -278,8 +278,6 @@ TRUSTED_PROXIES=10.0.0.5,10.0.0.6          # IPs of your LB/proxy; required for 
 NEXTAUTH_SECRET=                           # required, >=32 chars (openssl rand -hex 32)
 NEXTAUTH_URL=https://yourdomain.com        # required in prod — must be your real domain
 JWT_SECRET=                                # required, >=32 chars
-FAKE_BCRYPT_HASH=                          # required in prod — prevents login enumeration
-                                           # node -e "import('bcryptjs').then(b => b.default.hash('dummy',12).then(console.log))"
 
 # ── Database
 MONGODB_URI=                               # required

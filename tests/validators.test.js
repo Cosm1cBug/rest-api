@@ -43,6 +43,17 @@ describe('loginSchema', () => {
         const huge = 'a'.repeat(300) + '@x.com'
         expect(loginSchema.safeParse({ email: huge, password: 'secret123' }).success).toBe(false)
     })
+
+    // V10-1 regression — schema must be .strict() so a future refactor that does
+    // User.findOne(parsed.data) or similar cannot smuggle extra fields like
+    // { role: 'admin' } through the auth layer.
+    it('rejects unknown fields (.strict() — V10-1 regression)', () => {
+        expect(loginSchema.safeParse({
+            email: 'foo@example.com',
+            password: 'secret123',
+            role: 'admin'
+        }).success).toBe(false)
+    })
 })
 
 // ----------------------------------------------------- registerSchema
@@ -68,6 +79,22 @@ describe('registerSchema', () => {
         expect(registerSchema.safeParse({
             username: 'alice', email: 'a@b.co', password: 'short'
         }).success).toBe(false)
+    })
+
+    // V10-1 regression — registration is a write path; unknown fields must be
+    // rejected so an attacker cannot ship { role: 'admin' } through verify-otp.
+    it('rejects unknown fields (.strict() — V10-1 regression)', () => {
+        for (const sneak of [
+            { username: 'alice', email: 'a@b.co', password: 'longenough', role: 'admin' },
+            { username: 'alice', email: 'a@b.co', password: 'longenough', isAdmin: true },
+            { username: 'alice', email: 'a@b.co', password: 'longenough', disabled: false },
+            { username: 'alice', email: 'a@b.co', password: 'longenough', keyHash: 'x' }
+        ]) {
+            expect(
+                registerSchema.safeParse(sneak).success,
+                `should reject ${JSON.stringify(sneak)}`
+            ).toBe(false)
+        }
     })
 })
 
