@@ -17,16 +17,15 @@ const UserSchema = new mongoose.Schema({
         trim: true,
         index: true
     },
-    email: { 
-        type: String, 
+    email: {
+        type: String,
         unique: true,
         required: true,
         lowercase: true,
         trim: true
     },
     password: {
-        type: String,
-        required: true
+        type: String
     },
     role: {
         type: String,
@@ -42,23 +41,37 @@ const UserSchema = new mongoose.Schema({
         default: false,
         index: true
     },
-    image: { 
-        type: String, 
-        default: "default.jpg" 
+    image: {
+        type: String,
+        default: "default.jpg"
     },
-    request_today: { 
-        type: Number, 
-        default: 0 
+    request_today: {
+        type: Number,
+        default: 0
     },
-    request_all: { 
-        type: Number, 
-        default: 0 
+    request_all: {
+        type: Number,
+        default: 0
     },
     failedLoginAttempts: {
         type: Number,
         default: 0
     },
     lockUntil: {
+        type: Date,
+        default: null
+    },
+    oauthProviders: {
+        type: [String],
+        default: [],
+        index: true
+    },
+    oauthProfile: {
+        type: Map,
+        of: String,
+        default: () => new Map()
+    },
+    emailVerifiedAt: {
         type: Date,
         default: null
     }
