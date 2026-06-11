@@ -47,7 +47,7 @@ A self-hosted, production-grade API platform built on Next.js 15. Developers sig
 ### Admin
 - **User management API** — list/search/paginate, change role, disable/enable (auto-clears lockout), revoke any user's API key.
 - **Admin UI** — `/admin/users` (search + bulk actions) and `/admin/audit-log` (paginated viewer).
-- **Audit log** — every sensitive admin action recorded with actor, target, before/after diff, IP, and user-agent. Append-only; sensitive fields auto-redacted.
+- **Audit log** — every sensitive admin action recorded with actor, target, before/after diff, IP, and user-agent. Append-only; sensitive fields auto-redacted. Optional [SIEM forwarding](./docs/SIEM.md) ships the same events to Wazuh / ELK / Splunk as NDJSON when `SIEM_AUDIT_PATH` is set.
 - **Self-modification guards** — admins cannot change their own role or disable themselves through the API.
 
 ### Observability dashboard (admin-only)
@@ -57,6 +57,15 @@ A self-hosted, production-grade API platform built on Next.js 15. Developers sig
 - Geo breakdown (country/region/city) via `geoip-lite`.
 - System metrics (CPU, memory, uptime), BullMQ queue state, worker health.
 - Prometheus scrape endpoint.
+
+### SIEM forwarding (opt-in)
+- **Structured NDJSON event stream** to a file on disk, gated on the `SIEM_AUDIT_PATH` env var. Disabled by default — set the env var to enable; no code change required.
+- **Three event types** with a `_type` discriminator: `audit` (admin actions), `apilog` (every API request, ECS-mapped), `security` (abuse detector hits with MITRE ATT&CK IDs).
+- **Wazuh-native** — agent reads via `<localfile><log_format>json</log_format></localfile>`, no custom decoder needed. Portable to ELK / Splunk / Datadog via filebeat / fluentd / vector.
+- **Fail-closed at boot** — refuses to start if `SIEM_AUDIT_PATH` is set but unwritable. **Fail-open at runtime** — disk full / SIEM down never blocks an admin action; Mongo write remains the source of truth.
+- **Concurrency-safe** via POSIX `O_APPEND` atomicity; multi-worker PM2 + BullMQ can share the same file without locks.
+- See [`docs/SIEM.md`](./docs/SIEM.md) for design, sample events, suggested Wazuh rules, and volume tuning.
+- See [`docs/DEPLOY-SIEM.md`](./docs/DEPLOY-SIEM.md) for the 10-step operator deployment runbook with verification commands.
 
 ### Security
 - **Strict CSP, HSTS (preload), COOP, CORP, X-Frame-Options, Permissions-Policy, Referrer-Policy** set on every response via `middleware.js`.
@@ -300,6 +309,11 @@ EMAIL_PASS=
 # ── GitHub scraper (optional)
 GITHUB_TOKEN=                              # 60/hr anonymous -> 5000/hr authenticated
                                            # https://github.com/settings/tokens (no scopes needed)
+
+# ── SIEM forwarding (optional)
+SIEM_AUDIT_PATH=                           # absolute path to NDJSON file the SIEM agent reads.
+                                           # e.g. /var/log/orbitnode/audit.json
+                                           # Unset = disabled. See docs/SIEM.md.
 ```
 
 ---
