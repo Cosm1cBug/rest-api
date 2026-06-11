@@ -43,6 +43,7 @@ A self-hosted, production-grade API platform built on Next.js 15. Developers sig
 - **Anti-enumeration OTP flow** — `/api/auth/send-otp` returns the same response whether the email is registered or not; timing is jittered.
 - **Password reset** — token hashed (SHA-256) before storage, 1-hour TTL, atomic single-use claim, clears any active lockout on success.
 - **Self-service API key management** — create / list / revoke from a UI page.
+- **OAuth 2.0 / OIDC sign-in** (V11) — opt-in Google + GitHub providers via `GOOGLE_CLIENT_ID`/`GITHUB_CLIENT_ID` env pairs. Account-linking by verified email (only links when both the existing user's email is verified *and* the OAuth provider asserts `email_verified=true`). New OAuth users get a default API key on first sign-in. Every OAuth decision (signin/link/create/reject) is written to the audit log and forwarded to SIEM via the V11 sink. The login page auto-renders only the buttons for providers actually configured on the deployment.
 
 ### Admin
 - **User management API** — list/search/paginate, change role, disable/enable (auto-clears lockout), revoke any user's API key.
@@ -309,6 +310,16 @@ EMAIL_PASS=
 # ── GitHub scraper (optional)
 GITHUB_TOKEN=                              # 60/hr anonymous -> 5000/hr authenticated
                                            # https://github.com/settings/tokens (no scopes needed)
+
+# ── OAuth 2.0 / OIDC sign-in (optional, V11)
+# Each provider is enabled by setting BOTH its CLIENT_ID and CLIENT_SECRET.
+# Half-configured (only one set) = boot refusal. Unset both = provider disabled.
+# After configuring, redirect URI on the provider side is:
+#   https://yourdomain.com/api/auth/callback/<provider>
+GOOGLE_CLIENT_ID=                          # from https://console.cloud.google.com/apis/credentials
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=                          # from https://github.com/settings/developers
+GITHUB_CLIENT_SECRET=
 
 # ── SIEM forwarding (optional)
 SIEM_AUDIT_PATH=                           # absolute path to NDJSON file the SIEM agent reads.
