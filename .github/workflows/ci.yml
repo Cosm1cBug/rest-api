@@ -140,4 +140,12 @@ jobs:
           # build time. FAKE_BCRYPT_HASH was removed as a hard
           # requirement in V9 (getFakeHash() generates it at boot).
         # Skip lint inside the build — we already lint in its own job.
-        run: npx next build --no-lint
+        # tee the output so the next step can parse the route table.
+        # set -o pipefail so a failing `next build` propagates correctly
+        # even though it's piped to tee.
+        run: |
+          set -o pipefail
+          npx next build --no-lint 2>&1 | tee /tmp/build.log
+
+      - name: Check every app/api route is registered
+        run: node scripts/check-routes.js /tmp/build.log
