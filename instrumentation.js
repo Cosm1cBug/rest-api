@@ -35,4 +35,16 @@ export async function register() {
     // the desired behaviour — fail fast and loud rather than start in
     // a silently insecure state.
     assertSecrets()
+
+    // --- SIEM sink initialization (fail-fast on misconfig) ---
+    // initSiemSink() opens the write stream and verifies the directory is
+    // writable. A bad path (typo, missing dir, wrong owner) throws here so
+    // the operator gets a clear boot-time error rather than silent log loss
+    // months later. If SIEM_AUDIT_PATH is unset, init returns null and
+    // SIEM forwarding is a no-op.
+    const { initSiemSink } = await import('./lib/audit/siemSink.js')
+    const sink = await initSiemSink()
+    if (sink) {
+        console.log('[siem] forwarding enabled →', process.env.SIEM_AUDIT_PATH)
+    }
 }
