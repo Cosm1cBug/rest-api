@@ -28,7 +28,7 @@ function isValidObjectId(s) {
 
 async function fetchUserSafe(id) {
     return User.findById(id)
-        .select('username email role disabled image endDate failedLoginAttempts lockUntil createdAt')
+        .select('username email role disabled image endDate failedLoginAttempts lockUntil createdAt oauthProviders oauthProfile emailVerifiedAt')
         .lean()
 }
 
@@ -44,14 +44,29 @@ export async function GET(req, ctx) {
 
     await connectDB()
 
-    const [user, activeKeyCount] = await Promise.all([
+    const [user, activeKeyCount, recentKeys] = await Promise.all([
         fetchUserSafe(id),
-        ApiKey.countDocuments({ userId: id, revoked: false })
+        ApiKey.countDocuments({ userId: id, revoked: false }),
+        // Return the 10 most recent keys (active or revoked) so the
+        // admin detail page can show key labels + lastUsedAt without
+        // making a second round trip. Capped at 10 to keep the response
+        // small even for power users.
+        ApiKey.find({ userId: id })
+            .select('keyId label scopes expiresAt lastUsedAt revoked createdAt')
+            .sort({ createdAt: -1 })
+            .limit(10)
+            .lean()
     ])
 
     if (!user) {
         return Response.json({ success: false, error: 'User not found' }, { status: 404 })
     }
+
+    // OAuthProfile is a Mongo Map; .lean() returns it as a plain object
+    // on modern Mongoose but older versions may return a Map — normalise.
+    const profile = user.oauthProfile instanceof Map
+        ? Object.fromEntries(user.oauthProfile)
+        : (user.oauthProfile || {})
 
     return Response.json(
         {
@@ -67,7 +82,21 @@ export async function GET(req, ctx) {
                 failedLoginAttempts: user.failedLoginAttempts || 0,
                 lockedUntil: user.lockUntil || null,
                 createdAt: user.createdAt,
-                apiKeysActive: activeKeyCount
+                // V11 OAuth fields
+                oauthProviders: user.oauthProviders || [],
+                oauthProfile: profile,
+                emailVerifiedAt: user.emailVerifiedAt || null,
+                // Active key count + recent keys
+                apiKeysActive: activeKeyCount,
+                apiKeys: recentKeys.map(k => ({
+                    keyId: k.keyId,
+                    label: k.label || '',
+                    scopes: k.scopes || [],
+                    expiresAt: k.expiresAt || null,
+                    lastUsedAt: k.lastUsedAt || null,
+                    revoked: !!k.revoked,
+                    createdAt: k.createdAt
+                }))
             }
         },
         { headers: { 'Cache-Control': 'private, no-store' } }

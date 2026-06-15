@@ -95,6 +95,44 @@ jobs:
           NODE_ENV: test
         run: npm test
 
+  # ── 3b. Integration tests ────────────────────────────────────────
+  # Integration suites that boot a real in-memory MongoDB
+  # (via mongodb-memory-server) and stub Redis with ioredis-mock.
+  # Targets the V9-3 / V10-2.2 bug class: code that passes unit tests
+  # but breaks against the real database (schema drift, transaction
+  # races, writer/reader contract bugs).
+  #
+  # Slower than unit tests (~10-30s incl. mongo binary download cached
+  # across runs). Runs in its own job so a unit-test failure short-circuits
+  # the pipeline before paying the integration startup cost.
+  integration:
+    name: Vitest integration (real Mongo)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      # Cache the downloaded mongod binary across runs. First run on a
+      # fresh runner downloads ~80MB; subsequent runs reuse the cache.
+      - name: Cache mongodb-memory-server binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-mem-server-7.0.14
+
+      - name: Run integration tests
+        env:
+          NODE_ENV: test
+        run: npm run test:int
+
   # ── 4. Production build ──────────────────────────────────────────
   # The missing job that would have caught V9-1: a typo'd import path
   # in lib/telemetry.js compiled fine for Vitest (which doesn't bundle)

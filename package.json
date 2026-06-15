@@ -9,10 +9,10 @@
     "start": "next start",
     "lint": "eslint .",
     "worker": "node workers/scraper.worker.js",
-    "dashboard": "next dev",
     "kill:dev": "fuser -k 3000/tcp || true",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:int": "vitest run --config vitest.integration.config.js"
   },
   "dependencies": {
     "@bull-board/api": "^6.7.9",
@@ -34,7 +34,7 @@
     "next": "^15.3.2",
     "next-auth": "^4.24.11",
     "nextjs-toploader": "^3.8.16",
-    "nodemailer": "^7.0.7",
+    "nodemailer": "^8.0.11",
     "p-queue": "^8.1.0",
     "p-retry": "^6.2.1",
     "pino": "^9.7.0",
@@ -44,7 +44,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hot-toast": "^2.5.2",
-    "recharts": "^2.15.3",
+    "recharts": "^3.0.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "swagger-jsdoc": "^6.2.8",
@@ -58,9 +58,12 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.2",
+    "ioredis-mock": "^8.13.1",
     "lightningcss": "^1.30.1",
+    "mongodb-memory-server": "^11.2.0",
     "postcss": "^8.5.10",
     "tailwindcss": "^4.1.8",
+    "typescript": "^6.0.3",
     "vitest": "^2.1.9"
   },
   "overrides": {

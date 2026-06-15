@@ -9,7 +9,9 @@ const compat = new FlatCompat({
     baseDirectory: __dirname
 })
 
-export default [
+// V5-5 #5 cosmetic ESLint fix — wrap the default-exported array in a
+// named const so `import/no-anonymous-default-export` doesn't warn.
+const eslintConfig = [
     ...compat.extends('next/core-web-vitals'),
     {
         // Don't lint generated / vendored output.
@@ -22,3 +24,5 @@ export default [
         ]
     }
 ]
+
+export default eslintConfig

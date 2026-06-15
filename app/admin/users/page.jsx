@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
                                         const isLocked = u.lockedUntil && new Date(u.lockedUntil).getTime() > Date.now();
                                         return (
                                             <tr key={u.id} className="border-b border-[#2c2c3a] hover:bg-[#15151f]">
-                                                <td className="p-3 font-mono">{u.username}</td>
+                                                <td className="p-3 font-mono"><Link href={`/admin/users/${u.id}`} className="text-[#a08cf0] hover:underline">{u.username}</Link></td>
                                                 <td className="p-3 text-gray-300">{u.email}</td>
                                                 <td className="p-3">
                                                     <select
