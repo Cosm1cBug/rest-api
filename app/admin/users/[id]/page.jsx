@@ -1,6 +1,7 @@
 'use client';
 import Navbar from "@/components/navbar";
 import Alert from "@/components/alert";
+import Confirm from "@/components/confirm";
 import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -54,6 +55,7 @@ export default function AdminUserDetailPage() {
     const [audit, setAudit] = useState([]);
     const [auditLoading, setAuditLoading] = useState(true);
     const [busy, setBusy] = useState(null);  // 'role', 'disable', 'enable', 'revoke-<keyId>'
+    const [confirmState, setConfirmState] = useState(null);
 
     const [showAlert, setShowAlert] = useState({ message: "", visible: false });
     const alert = (message) => {
@@ -177,8 +179,16 @@ export default function AdminUserDetailPage() {
         }
     };
 
-    const handleRevokeKey = async (keyId) => {
-        if (!confirm(`Revoke API key ${keyId}? This cannot be undone.`)) return;
+    const handleRevokeKey = (keyId) => {
+        setConfirmState({
+            message: `Revoke API key ${keyId}? This cannot be undone.`,
+            confirmLabel: 'Revoke',
+            destructive: true,
+            onConfirm: () => doRevokeKey(keyId)
+        });
+    };
+
+    const doRevokeKey = async (keyId) => {
         setBusy(`revoke-${keyId}`);
         try {
             const r = await fetch(`/api/admin/users/${userId}/api-keys/${keyId}`, { method: 'DELETE' });
@@ -398,6 +408,11 @@ export default function AdminUserDetailPage() {
                 message={showAlert.message}
                 visible={showAlert.visible}
                 onClose={() => setShowAlert({ message: "", visible: false })}
+            />
+
+            <Confirm
+                state={confirmState}
+                onClose={() => setConfirmState(null)}
             />
         </div>
     );

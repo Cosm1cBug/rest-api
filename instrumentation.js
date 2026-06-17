@@ -47,4 +47,15 @@ export async function register() {
     if (sink) {
         console.log('[siem] forwarding enabled →', process.env.SIEM_AUDIT_PATH)
     }
+
+    // --- V15 batch (item #5) — graceful shutdown for SIGTERM/SIGINT ---
+    // Container orchestrators (Kubernetes, Docker stop, Nomad) send
+    // SIGTERM during deploys and pod evictions. Without this handler,
+    // the process exits abruptly, leaking Mongo + Redis connections
+    // and treating in-flight BullMQ jobs as completed when they weren't.
+    //
+    // PM2 already wires its own shutdown flow, but next start under
+    // K8s/Docker doesn't, which is the path this hook covers.
+    const { registerShutdownHandlers } = await import('./lib/shutdown.js')
+    registerShutdownHandlers()
 }

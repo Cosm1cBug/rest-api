@@ -66,6 +66,7 @@ A self-hosted, production-grade API platform built on Next.js 15. Developers sig
 - **Fail-closed at boot** — refuses to start if `SIEM_AUDIT_PATH` is set but unwritable. **Fail-open at runtime** — disk full / SIEM down never blocks an admin action; Mongo write remains the source of truth.
 - **Concurrency-safe** via POSIX `O_APPEND` atomicity; multi-worker PM2 + BullMQ can share the same file without locks.
 - See [`docs/SIEM.md`](./docs/SIEM.md) for design, sample events, suggested Wazuh rules, and volume tuning.
+- See [`docs/BACKUP.md`](./docs/BACKUP.md) for backup/restore procedures, RTO/RPO guidance, and disaster-recovery drills (V15).
 - See [`docs/DEPLOY-SIEM.md`](./docs/DEPLOY-SIEM.md) for the 10-step operator deployment runbook with verification commands.
 
 ### Security

@@ -44,6 +44,22 @@ const AuditLogSchema = new mongoose.Schema({
     userAgent: {
         type: String,
         default: 'unknown'
+    },
+    // Correlation with the per-request X-Request-Id
+    // (set by middleware.js + reflected on every response). Joining this
+    // with the apilog collection on requestId lets a SOC analyst answer
+    // "this audit event was triggered by which HTTP request?" without
+    // having to guess from timestamps.
+    //
+    // Indexed for the same reason — incident investigators query by
+    // requestId much more often than they scan the whole collection.
+    // Empty string (not null) when no request context is available
+    // (background-job audit writes, etc.) — keeps the field non-sparse
+    // and the index dense.
+    requestId: {
+        type: String,
+        default: '',
+        index: true
     }
 }, {
     timestamps: true   // adds createdAt + updatedAt

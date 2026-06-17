@@ -8,6 +8,37 @@ const SLUG_RE = /^[a-z0-9_-]{1,64}$/
 const MAX_IPS = 1000
 const DEBOUNCE_SECONDS = 5 * 60
 
+// Per-IP rate limit on the view counter.
+//
+// The 5-minute (slug, ip) debounce already limits writes per legitimate
+// page view, but a bot that cycles through 1000 distinct slugs per IP
+// in a burst still hits Mongo with 1000 findOneAndUpdate calls. This
+// limit caps the total request rate per IP regardless of the slug,
+// closing that vector.
+//
+// 100 req/min is generous for a real page-view tracker (a user reading
+// 100 pages in 60s is unusual but not impossible); anything beyond is
+// almost certainly a bot. Failures fail OPEN — Redis blips never block
+// page-view tracking on legit traffic.
+const RATE_LIMIT_PER_MIN = 100
+const RATE_LIMIT_WINDOW_SECONDS = 60
+
+async function checkViewRateLimit(ip) {
+    try {
+        const key = `views:ratelimit:${ip}`
+        const count = await redis.incr(key)
+        if (count === 1) {
+            await redis.expire(key, RATE_LIMIT_WINDOW_SECONDS)
+        }
+        return count <= RATE_LIMIT_PER_MIN
+    } catch (err) {
+        console.error('[views] rate-limit check failed:', err.message)
+        // Fail open — see comment above. The debounce + slug regex
+        // already constrain the worst case.
+        return true
+    }
+}
+
 /**
  * @openapi
  * /api/views/index:
@@ -18,6 +49,7 @@ const DEBOUNCE_SECONDS = 5 * 60
  *       Tolerates empty body (for navigator.sendBeacon clients). Slug must match
  *       `^[a-z0-9_-]{1,64}$` or it falls back to `index`. Redis or Mongo failures
  *       fall back to `views=0` rather than 500ing so this never blocks a render.
+ *       Per-IP rate limit: 100 requests/minute (V15 item #1).
  *     requestBody:
  *       required: false
  *       content:
@@ -37,6 +69,8 @@ const DEBOUNCE_SECONDS = 5 * 60
  *                 success: { type: boolean }
  *                 slug:    { type: string }
  *                 views:   { type: integer }
+ *       429:
+ *         $ref: '#/components/responses/RateLimited'
  */
 export async function POST(req) {
     let slug = 'index'
@@ -51,6 +85,21 @@ export async function POST(req) {
     }
 
     const ip = clientIp(req)
+
+    // #1 — per-IP rate limit FIRST (before any Mongo work).
+    const ok = await checkViewRateLimit(ip)
+    if (!ok) {
+        return NextResponse.json(
+            { success: false, message: 'Rate limited.' },
+            {
+                status: 429,
+                headers: {
+                    'Cache-Control': 'no-store',
+                    'Retry-After': String(RATE_LIMIT_WINDOW_SECONDS)
+                }
+            }
+        )
+    }
 
     // --- Debounce: at most one count per (slug, ip) per window ---
     let shouldIncrement = true
