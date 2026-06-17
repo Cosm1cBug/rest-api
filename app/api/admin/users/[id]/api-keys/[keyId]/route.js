@@ -5,6 +5,23 @@ import ApiKey from '@/models/apiKey.js'
 import { requireAdminWithToken } from '@/lib/auth/requireAdmin.js'
 import { writeAudit } from '@/lib/audit.js'
 
+/**
+ * @openapi
+ * /api/admin/users/{id}/api-keys/{keyId}:
+ *   delete:
+ *     tags: [Admin]
+ *     summary: Admin-side API key revoke (any user)
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - { in: path, name: id,    required: true, schema: { type: string }, description: User ObjectId. }
+ *       - { in: path, name: keyId, required: true, schema: { type: string }, description: Public 16-hex key prefix. }
+ *     responses:
+ *       200: { description: Key revoked. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { description: User or key not found. }
+ */
 export async function DELETE(req, ctx) {
     const { token, response } = await requireAdminWithToken(req)
     if (response) return response

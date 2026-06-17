@@ -25,6 +25,25 @@ async function loadFeatures() {
     }
 }
 
+/**
+ * @openapi
+ * /api/features:
+ *   get:
+ *     tags: [Public]
+ *     summary: Scraper catalogue (60-second in-memory cache)
+ *     description: Returns the static list of available scrapers loaded from features.json.
+ *     responses:
+ *       200:
+ *         description: Feature list.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 features:
+ *                   type: array
+ *                   items: { type: object, additionalProperties: true }
+ */
 export async function GET() {
     const data = await loadFeatures()
 

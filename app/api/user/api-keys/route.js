@@ -21,6 +21,26 @@ const createSchema = z.object({
 }).strict()
 
 // ---------------------------------------------------------------------- GET
+/**
+ * @openapi
+ * /api/user/api-keys:
+ *   get:
+ *     tags: [User]
+ *     summary: List own API keys (active and revoked)
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200:
+ *         description: Caller's keys.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 keys:    { type: array, items: { $ref: '#/components/schemas/ApiKeyDto' } }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function GET(req) {
     const guard = await requireSession(req)
     if (!guard.ok) return guard.response
@@ -70,6 +90,36 @@ export async function GET(req) {
 }
 
 // --------------------------------------------------------------------- POST
+/**
+ * @openapi
+ * /api/user/api-keys:
+ *   post:
+ *     tags: [User]
+ *     summary: Issue a new API key (returns plaintext ONCE)
+ *     description: |
+ *       Generates a `keyId.secret` pair; only the bcrypt hash of `secret` is
+ *       stored server-side. The plaintext `apiKey` is returned in this response
+ *       and is never recoverable afterwards.
+ *     security:
+ *       - SessionCookie: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               label:     { type: string, maxLength: 64 }
+ *               scopes:    { type: array, items: { type: string, enum: [github, uploads] } }
+ *               expiresAt: { type: string, format: date-time, nullable: true }
+ *     responses:
+ *       201:
+ *         description: Key issued.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/ApiKeyIssueResponse' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function POST(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

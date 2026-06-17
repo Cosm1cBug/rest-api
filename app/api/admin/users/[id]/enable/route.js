@@ -4,6 +4,26 @@ import User from '@/models/user.js'
 import { requireAdminWithToken } from '@/lib/auth/requireAdmin.js'
 import { writeAudit } from '@/lib/audit.js'
 
+/**
+ * @openapi
+ * /api/admin/users/{id}/enable:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Re-enable a user account (also clears lockout state)
+ *     description: Convenience endpoint. Clears failedLoginAttempts and lockUntil so the user can sign in immediately.
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Account enabled. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
 export async function POST(req, ctx) {
     const { token, response } = await requireAdminWithToken(req)
     if (response) return response

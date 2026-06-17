@@ -4,6 +4,23 @@ import ApiKey from '@/models/apiKey.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
 import { readUsage, dailyQuotaFor } from '@/lib/usage.js'
 
+/**
+ * @openapi
+ * /api/user/data:
+ *   get:
+ *     tags: [User]
+ *     summary: Current user profile (powers the useUser client hook)
+ *     description: Sanitised — never includes password, keyHash, or other secrets.
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200:
+ *         description: User object.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/UserDto' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function GET(req) {
 
     const guard = await requireSession(req)

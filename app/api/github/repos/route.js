@@ -9,6 +9,25 @@ import { getUserRepos } from '@/lib/scrapers/githubClient.js'
  *   Cached for 5 minutes per (user, page, perPage, sort) tuple — short
  *   because repo activity shifts quickly (stars, pushedAt).
  */
+/**
+ * @openapi
+ * /api/github/repos:
+ *   get:
+ *     tags: [Scrapers]
+ *     summary: GitHub user repositories (paginated, 5-minute cache)
+ *     security:
+ *       - ApiKey: []
+ *     parameters:
+ *       - { in: query, name: username, required: true, schema: { type: string } }
+ *       - { in: query, name: page,     required: false, schema: { type: integer, minimum: 1 } }
+ *       - { in: query, name: perPage,  required: false, schema: { type: integer, minimum: 1, maximum: 100 } }
+ *       - { in: query, name: sort,     required: false, schema: { type: string, enum: [created, updated, pushed, full_name] } }
+ *     responses:
+ *       200: { description: Repository list (proxied). }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       429: { $ref: '#/components/responses/RateLimited' }
+ */
 export async function GET(req) {
     return runScraper(req, {
         name: 'github.repos',

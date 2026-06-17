@@ -4,6 +4,27 @@ import User from '@/models/user.js'
 import { requireAdminWithToken } from '@/lib/auth/requireAdmin.js'
 import { writeAudit } from '@/lib/audit.js'
 
+/**
+ * @openapi
+ * /api/admin/users/{id}/disable:
+ *   post:
+ *     tags: [Admin]
+ *     summary: Disable a user account (one-shot, audit logged)
+ *     description: 'Convenience endpoint equivalent to PATCH with `{ disabled: true }`. Admin cannot disable themselves.'
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Account disabled. }
+ *       400: { description: Attempted self-disable. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
 export async function POST(req, ctx) {
     const { token, response } = await requireAdminWithToken(req)
     if (response) return response

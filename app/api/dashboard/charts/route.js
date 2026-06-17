@@ -2,6 +2,19 @@ import ApiLog from '@/models/apiLog.js'
 import connectDB from '@/lib/mongodb.js'
 import { requireAdmin } from '@/lib/auth/requireAdmin.js'
 
+/**
+ * @openapi
+ * /api/dashboard/charts:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: Hourly traffic charts (last 24h)
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200: { description: Chart series. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 export async function GET() {
 
     const denied = await requireAdmin(req)

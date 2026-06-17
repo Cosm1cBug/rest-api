@@ -3,6 +3,30 @@ import User from '@/models/user.js'
 import { requireAdmin } from '@/lib/auth/requireAdmin.js'
 import { adminUserListQuerySchema } from '@/lib/validators/admin.js'
 
+/**
+ * @openapi
+ * /api/admin/users:
+ *   get:
+ *     tags: [Admin]
+ *     summary: List/search/filter users (paginated, capped at 100/page)
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - { in: query, name: q,        required: false, schema: { type: string, maxLength: 64 }, description: 'Search username/email (regex-escaped).' }
+ *       - { in: query, name: role,     required: false, schema: { type: string, enum: [basic, standard, premium, admin] } }
+ *       - { in: query, name: disabled, required: false, schema: { type: string, enum: ['true', 'false'] } }
+ *       - { in: query, name: page,     required: false, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: limit,    required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+ *     responses:
+ *       200:
+ *         description: Paginated user list.
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/PaginatedUsers' }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 export async function GET(req) {
 
     const denied = await requireAdmin(req)

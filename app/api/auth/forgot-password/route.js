@@ -58,6 +58,29 @@ async function sendResetEmail(to, link) {
     })
 }
 
+/**
+ * @openapi
+ * /api/auth/forgot-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Request password-reset email (anti-enumeration generic response)
+ *     description: |
+ *       Generic 200 regardless of whether the email is registered. The reset
+ *       token is hashed (SHA-256) before storage; only the hash is persisted.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email, maxLength: 254 }
+ *     responses:
+ *       200: { description: Generic `if account exists, link sent` message. }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       429: { $ref: '#/components/responses/RateLimited' }
+ */
 export async function POST(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

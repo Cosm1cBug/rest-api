@@ -8,6 +8,36 @@ const SLUG_RE = /^[a-z0-9_-]{1,64}$/
 const MAX_IPS = 1000
 const DEBOUNCE_SECONDS = 5 * 60
 
+/**
+ * @openapi
+ * /api/views/index:
+ *   post:
+ *     tags: [Public]
+ *     summary: Page-view counter with 5-minute Redis debounce per IP/slug
+ *     description: |
+ *       Tolerates empty body (for navigator.sendBeacon clients). Slug must match
+ *       `^[a-z0-9_-]{1,64}$` or it falls back to `index`. Redis or Mongo failures
+ *       fall back to `views=0` rather than 500ing so this never blocks a render.
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               slug: { type: string, pattern: '^[a-z0-9_-]{1,64}$' }
+ *     responses:
+ *       200:
+ *         description: View count.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 slug:    { type: string }
+ *                 views:   { type: integer }
+ */
 export async function POST(req) {
     let slug = 'index'
 

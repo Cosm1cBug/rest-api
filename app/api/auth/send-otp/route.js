@@ -52,6 +52,31 @@ async function sendOtpEmail(to, code) {
     })
 }
 
+/**
+ * @openapi
+ * /api/auth/send-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Send registration OTP (anti-enumeration generic response)
+ *     description: |
+ *       Returns the same generic 200 whether the email is registered or not.
+ *       Rate-limited 3 sends per email per 10 minutes; response timing is
+ *       jittered so it cannot be used as an enumeration oracle.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [email]
+ *             properties:
+ *               email: { type: string, format: email, maxLength: 254 }
+ *     responses:
+ *       200: { description: Generic `if eligible, OTP sent` message. }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       429: { $ref: '#/components/responses/RateLimited' }
+ *       503: { description: Email service not configured (EMAIL_USER / EMAIL_PASS unset). }
+ */
 export async function POST(req) {
     try {
         const ctDenied = requireJson(req)

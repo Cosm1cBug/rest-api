@@ -30,6 +30,29 @@ import { clearLoginFailures } from '@/lib/auth/loginLockout.js'
 
 const BCRYPT_ROUNDS = 12
 
+/**
+ * @openapi
+ * /api/user/change-password:
+ *   post:
+ *     tags: [User]
+ *     summary: Change own password (requires current password)
+ *     security:
+ *       - SessionCookie: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword: { type: string }
+ *               newPassword:     { type: string, minLength: 8, maxLength: 100 }
+ *     responses:
+ *       200: { description: Password updated. }
+ *       400: { description: New password too weak or identical to current. }
+ *       401: { description: Current password incorrect. }
+ */
 export async function POST(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

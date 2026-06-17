@@ -17,6 +17,45 @@ const DUPLICATE_ACCOUNT_ERROR = {
     message: 'Could not create account with the provided details. Please try a different username or email.'
 }
 
+/**
+ * @openapi
+ * /api/auth/verify-otp:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Verify OTP + create account (returns one-time API key)
+ *     description: |
+ *       On success returns plaintext `apiKey` — server only stores the bcrypt
+ *       hash, so this is the user's only chance to save it. Per-OTP attempt
+ *       cap (5), per-(IP, email) and per-IP Redis rate limits. Email or
+ *       username collisions return a single generic 409 to prevent enumeration.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [username, email, password, otp]
+ *             properties:
+ *               username: { type: string, minLength: 3, maxLength: 30, pattern: '^[a-zA-Z0-9_.-]+$' }
+ *               email:    { type: string, format: email, maxLength: 254 }
+ *               password: { type: string, minLength: 8, maxLength: 100 }
+ *               otp:      { type: string, pattern: '^[0-9]{6}$' }
+ *     responses:
+ *       201:
+ *         description: Account created. Save `apiKey` immediately — not shown again.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:  { type: boolean }
+ *                 message:  { type: string }
+ *                 apiKey:   { type: string, description: 'keyId.secret format. Show ONCE.' }
+ *                 apiKeyId: { type: string }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       409: { description: 'Email or username already in use (generic, to prevent enumeration).' }
+ *       429: { $ref: '#/components/responses/RateLimited' }
+ */
 export async function POST(req) {
     try {
         const ctDenied = requireJson(req)

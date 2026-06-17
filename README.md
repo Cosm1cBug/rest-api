@@ -175,7 +175,7 @@ Incoming request
 | Endpoint | Description |
 |---|---|
 | `GET /api/prometheus` | Prometheus scrape. Fails closed if `ADMIN_KEY` unset. |
-| `GET /api/docs` | OpenAPI / Swagger spec. |
+| `GET /api/docs` | OpenAPI 3.0 spec (all 38 routes annotated). Import to Postman/Insomnia or feed to openapi-generator-cli. See [docs/OPENAPI.md](./docs/OPENAPI.md). |
 
 ---
 

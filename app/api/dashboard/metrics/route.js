@@ -2,6 +2,19 @@ import os from 'os'
 import { requireAdmin } from '@/lib/auth/requireAdmin.js'
 import { getTelemetry } from '@/lib/telemetry.js'
 
+/**
+ * @openapi
+ * /api/dashboard/metrics:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: System metrics (CPU, memory, uptime; cache hit/miss; active users)
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200: { description: Metrics payload. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 export async function GET(req) {
 
     const denied = await requireAdmin(req)

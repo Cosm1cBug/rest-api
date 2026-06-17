@@ -14,6 +14,22 @@ const schema = z.object({
     confirm:         z.literal('DELETE')
 }).strict()
 
+/**
+ * @openapi
+ * /api/user/delete-account:
+ *   delete:
+ *     tags: [User]
+ *     summary: Delete own account (irreversible)
+ *     description: |
+ *       Cascades: revokes all of the caller's API keys, writes a final audit
+ *       entry (mirrored to SIEM if configured), then removes the user document.
+ *       Cannot be undone.
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200: { description: Account deleted. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function DELETE(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

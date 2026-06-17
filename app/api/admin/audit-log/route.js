@@ -16,6 +16,30 @@ function safeId(s) {
     return mongoose.Types.ObjectId.isValid(s) ? s : null
 }
 
+/**
+ * @openapi
+ * /api/admin/audit-log:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Paginated audit log viewer (filterable by actor/target/action)
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - { in: query, name: actorId,  required: false, schema: { type: string }, description: Filter by acting admin. }
+ *       - { in: query, name: targetId, required: false, schema: { type: string }, description: Filter by target user. }
+ *       - { in: query, name: action,   required: false, schema: { type: string, maxLength: 64 }, description: 'Filter by action name (e.g. user.disable).' }
+ *       - { in: query, name: page,     required: false, schema: { type: integer, minimum: 1, default: 1 } }
+ *       - { in: query, name: limit,    required: false, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+ *     responses:
+ *       200:
+ *         description: Paginated entries (newest first).
+ *         content:
+ *           application/json:
+ *             schema: { $ref: '#/components/schemas/PaginatedAuditEntries' }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 export async function GET(req) {
 
     const denied = await requireAdmin(req)

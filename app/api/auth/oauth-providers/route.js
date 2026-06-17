@@ -18,6 +18,29 @@ import { getEnabledOAuthProviderIds } from '@/lib/auth/oauthProviders.js'
 
 export const dynamic = 'force-dynamic'   // never prerender — env vars matter
 
+/**
+ * @openapi
+ * /api/auth/oauth-providers:
+ *   get:
+ *     tags: [Auth]
+ *     summary: List configured OAuth providers (drives login-page button rendering)
+ *     description: |
+ *       Returns the provider IDs that have both `<PROVIDER>_CLIENT_ID` and
+ *       `<PROVIDER>_CLIENT_SECRET` set on this deployment. The login page UI
+ *       uses this so only the buttons for providers that will actually work get rendered.
+ *     responses:
+ *       200:
+ *         description: Provider list (may be empty if none configured).
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 providers:
+ *                   type: array
+ *                   items: { type: string, enum: [google, github] }
+ *                   example: [google, github]
+ */
 export async function GET() {
     return NextResponse.json(
         { providers: getEnabledOAuthProviderIds() },

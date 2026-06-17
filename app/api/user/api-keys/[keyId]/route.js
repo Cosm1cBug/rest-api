@@ -3,6 +3,24 @@ import ApiKey from '@/models/apiKey.js'
 import User from '@/models/user.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
 
+/**
+ * @openapi
+ * /api/user/api-keys/{keyId}:
+ *   delete:
+ *     tags: [User]
+ *     summary: Revoke own API key
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: keyId
+ *         required: true
+ *         schema: { type: string }
+ *     responses:
+ *       200: { description: Key revoked. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       404: { description: Key not found or not owned by caller. }
+ */
 export async function DELETE(req, ctx) {
     const guard = await requireSession(req)
     if (!guard.ok) return guard.response

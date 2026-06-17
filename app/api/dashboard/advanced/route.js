@@ -3,6 +3,19 @@ import connectDB from '@/lib/mongodb.js'
 import { dashboardRateLimit } from '@/lib/middleware/adminRateLimit'
 import { requireAdmin } from '@/lib/auth/requireAdmin.js' 
 
+/**
+ * @openapi
+ * /api/dashboard/advanced:
+ *   get:
+ *     tags: [Dashboard]
+ *     summary: Advanced dashboard data (latency heatmaps, error rates)
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200: { description: Dashboard payload. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ */
 export async function GET(req) {
 
     const denied = await requireAdmin(req)

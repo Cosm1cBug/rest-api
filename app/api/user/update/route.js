@@ -4,6 +4,32 @@ import { requireSession } from '@/lib/auth/requireSession.js'
 import { requireJson } from '@/lib/auth/requireJson.js'
 import { userUpdateSchema } from '@/lib/validators/user.js'
 
+/**
+ * @openapi
+ * /api/user/update:
+ *   post:
+ *     tags: [User]
+ *     summary: Update own username / image
+ *     description: |
+ *       Strict Zod schema — rejects unknown fields, so a user cannot self-promote
+ *       via `{ role: 'admin' }`. External-URL images are rejected to prevent
+ *       avatar-based tracking.
+ *     security:
+ *       - SessionCookie: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username: { type: string, minLength: 3, maxLength: 30 }
+ *               image:    { type: string, description: 'Must be a local path; external URLs rejected.' }
+ *     responses:
+ *       200: { description: Updated profile. }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function POST(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

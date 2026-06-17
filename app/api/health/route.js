@@ -31,6 +31,38 @@ function mongoStatus() {
     }
 }
 
+/**
+ * @openapi
+ * /api/health:
+ *   get:
+ *     tags: [Public]
+ *     summary: Liveness + readiness probe (LB-safe minimal payload)
+ *     description: |
+ *       Anonymous response is intentionally minimal — `{status, timestamp}` only —
+ *       so the endpoint is safe to publish to public LB health checks without
+ *       leaking internal architecture. Adding a valid `x-admin-key` header returns
+ *       a richer payload including Mongo + Redis connection state.
+ *     parameters:
+ *       - in: header
+ *         name: x-admin-key
+ *         required: false
+ *         schema: { type: string }
+ *         description: Optional. If valid, response includes Mongo + Redis details.
+ *     responses:
+ *       200:
+ *         description: Healthy. `status` is `ok` or `degraded`.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:    { type: string, enum: [ok, degraded] }
+ *                 timestamp: { type: integer, description: Unix epoch ms }
+ *                 mongodb:   { type: string, description: '(admin-key only)' }
+ *                 redis:     { type: string, description: '(admin-key only)' }
+ *       503:
+ *         description: At least one downstream dependency is unreachable.
+ */
 export async function GET(req) {
 
     const [mongo, redisStatus] = await Promise.all([

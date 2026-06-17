@@ -33,6 +33,43 @@ async function fetchUserSafe(id) {
 }
 
 // ------------------------------------------------------------------ GET
+/**
+ * @openapi
+ * /api/admin/users/{id}:
+ *   get:
+ *     tags: [Admin]
+ *     summary: Single user detail (extended — OAuth fields + recent API keys)
+ *     description: |
+ *       Returns the user document plus V11 OAuth fields (oauthProviders,
+ *       oauthProfile, emailVerifiedAt) and the 10 most recent API keys.
+ *       Powers the V13 admin detail page at /admin/users/[id].
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, description: MongoDB ObjectId. }
+ *     responses:
+ *       200:
+ *         description: User detail.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 user:
+ *                   allOf:
+ *                     - { $ref: '#/components/schemas/UserDto' }
+ *                     - type: object
+ *                       properties:
+ *                         apiKeys: { type: array, items: { $ref: '#/components/schemas/ApiKeyDto' } }
+ *       400: { description: Invalid ObjectId. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
 export async function GET(req, ctx) {
     const denied = await requireAdmin(req)
     if (denied) return denied
@@ -104,6 +141,41 @@ export async function GET(req, ctx) {
 }
 
 // ---------------------------------------------------------------- PATCH
+/**
+ * @openapi
+ * /api/admin/users/{id}:
+ *   patch:
+ *     tags: [Admin]
+ *     summary: Mutate role / disabled / endDate (self-modification guards enforced)
+ *     description: |
+ *       Admin cannot change their own role or disable themselves through this
+ *       endpoint (would leave the system without an admin). Re-enabling a user
+ *       also clears their lockout state. Sensitive fields (password, keyHash)
+ *       are rejected by the strict Zod schema. All changes go to audit log + SIEM.
+ *     security:
+ *       - SessionCookie: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string }
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               role:     { type: string, enum: [basic, standard, premium, admin] }
+ *               disabled: { type: boolean }
+ *               endDate:  { type: string, format: date-time, nullable: true }
+ *     responses:
+ *       200: { description: User updated. }
+ *       400: { description: Invalid input or self-modification attempt. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       403: { $ref: '#/components/responses/Forbidden' }
+ *       404: { $ref: '#/components/responses/NotFound' }
+ */
 export async function PATCH(req, ctx) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

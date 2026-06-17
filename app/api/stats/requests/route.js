@@ -2,6 +2,28 @@ import connectDB from '@/lib/mongodb.js'
 import ApiLog from '@/models/apiLog.js'
 import { requireSession } from '@/lib/auth/requireSession.js'
 
+/**
+ * @openapi
+ * /api/stats/requests:
+ *   get:
+ *     tags: [User]
+ *     summary: Per-user request stats (24h hourly bucket + totals)
+ *     security:
+ *       - SessionCookie: []
+ *     responses:
+ *       200:
+ *         description: Stats object.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: boolean }
+ *                 hourly:  { type: array, items: { type: object, properties: { hour: { type: string }, count: { type: integer } } } }
+ *                 total24h: { type: integer }
+ *                 totalAll: { type: integer }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ */
 export async function GET(req) {
 
     const guard = await requireSession(req)

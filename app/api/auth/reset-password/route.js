@@ -20,6 +20,31 @@ function hashToken(token) {
     return crypto.createHash('sha256').update(token).digest('hex')
 }
 
+/**
+ * @openapi
+ * /api/auth/reset-password:
+ *   post:
+ *     tags: [Auth]
+ *     summary: Consume password-reset token
+ *     description: |
+ *       Token is hashed-and-claimed atomically — replays are rejected. On
+ *       success, the user's password is updated, all of their pending reset
+ *       tokens are deleted, and any active lockout is cleared.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [token, password]
+ *             properties:
+ *               token:    { type: string }
+ *               password: { type: string, minLength: 8, maxLength: 100 }
+ *     responses:
+ *       200: { description: Password updated. }
+ *       400: { description: Invalid token, expired token, or weak password. }
+ *       429: { $ref: '#/components/responses/RateLimited' }
+ */
 export async function POST(req) {
     const ctDenied = requireJson(req)
     if (ctDenied) return ctDenied

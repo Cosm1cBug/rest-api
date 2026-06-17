@@ -8,6 +8,23 @@ import { getRepo } from '@/lib/scrapers/githubClient.js'
  *   x-api-key required.
  *   Cached for 5 minutes per (owner, name).
  */
+/**
+ * @openapi
+ * /api/github/repo:
+ *   get:
+ *     tags: [Scrapers]
+ *     summary: Single GitHub repository detail (5-minute cache)
+ *     security:
+ *       - ApiKey: []
+ *     parameters:
+ *       - { in: query, name: owner, required: true, schema: { type: string }, description: Repository owner (user or org). }
+ *       - { in: query, name: name,  required: true, schema: { type: string }, description: Repository name. }
+ *     responses:
+ *       200: { description: Repository JSON (proxied). }
+ *       400: { $ref: '#/components/responses/ValidationError' }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       404: { description: Repository not found. }
+ */
 export async function GET(req) {
     return runScraper(req, {
         name: 'github.repo',

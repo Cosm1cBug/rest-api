@@ -30,6 +30,32 @@ function jsonError(message, status) {
     return Response.json({ success: false, error: message }, { status })
 }
 
+/**
+ * @openapi
+ * /api/uploads:
+ *   get:
+ *     tags: [Scrapers]
+ *     summary: Serve a file from the tmp uploads directory (filename allow-listed)
+ *     description: |
+ *       Filename must match `^[A-Za-z0-9_-]+\\.[A-Za-z0-9]{1,8}$`. This eliminates
+ *       path traversal (`../`) and Content-Disposition header injection.
+ *       Content-Type is detected via magic-byte (file-type), not the extension.
+ *     security:
+ *       - ApiKey: []
+ *     parameters:
+ *       - in: query
+ *         name: filename
+ *         required: true
+ *         schema: { type: string, pattern: '^[A-Za-z0-9_-]+\\.[A-Za-z0-9]{1,8}$' }
+ *     responses:
+ *       200:
+ *         description: File body (binary).
+ *         content:
+ *           application/octet-stream: { schema: { type: string, format: binary } }
+ *       400: { description: Filename failed the allow-list. }
+ *       401: { $ref: '#/components/responses/Unauthorized' }
+ *       404: { description: File not found in tmp/. }
+ */
 export async function GET(req) {
 
     let user
