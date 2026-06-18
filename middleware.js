@@ -1,10 +1,29 @@
 import { NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
-const ADMIN_PREFIXES = [
-    '/api/:path',
-    '/dashboard/:path',
-    '/admin/:path'
+// fix — the previous version used Next.js route-matcher notation
+// (`/api/:path`) inside string-prefix checks. `:path` is meaningful to
+// Next's matcher config but a literal string when compared with `===`
+// or `startsWith()`, so isAdminPath() returned false for EVERY request,
+// including /admin/users, /dashboard/metrics, and /api/admin/* — turning
+// the middleware admin gate into a complete no-op.
+//
+// Per-route requireAdmin() calls in each handler caught most of the
+// damage (defense-in-depth — see lib/auth/requireAdmin.js), but page
+// routes like /dashboard have no per-route gate of their own, so the
+// dashboard shell loaded anonymously (with every fetch then 401'ing).
+// Now both the page route and the API routes are gated at the edge,
+// AND the in-handler requireAdmin() stays as the second layer.
+//
+// Scoping note: /api is intentionally NOT a blanket prefix — public
+// endpoints (/api/health, /api/features, /api/auth/*, /api/views/index)
+// must stay reachable anonymously. We list the admin-only API prefixes
+// explicitly. Adding a new admin API surface? Add its prefix here.
+const ADMIN_PATH_PREFIXES = [
+    '/admin',
+    '/dashboard',
+    '/api/admin',
+    '/api/dashboard'
 ]
 
 const PUBLIC_EXCEPTIONS = []
@@ -13,7 +32,10 @@ function isAdminPath(pathname) {
     if (PUBLIC_EXCEPTIONS.some(p => pathname === p || pathname.startsWith(p + '/'))) {
         return false
     }
-    return ADMIN_PREFIXES.some(p => pathname === p || pathname.startsWith(p + '/'))
+    // Match either exact (`/admin`) or any descendant (`/admin/anything`).
+    return ADMIN_PATH_PREFIXES.some(p =>
+        pathname === p || pathname.startsWith(p + '/')
+    )
 }
 
 /**

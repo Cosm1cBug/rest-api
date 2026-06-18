@@ -14,8 +14,8 @@ import { requireAdmin } from '@/lib/auth/requireAdmin.js'
  *       401: { $ref: '#/components/responses/Unauthorized' }
  *       403: { $ref: '#/components/responses/Forbidden' }
  */
-export async function GET() {
-    
+export async function GET(req) {
+
     const denied = await requireAdmin(req)
     if (denied) return denied
 
